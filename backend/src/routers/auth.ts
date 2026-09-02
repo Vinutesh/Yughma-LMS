@@ -48,9 +48,9 @@ async function buildSessionPayload(userId: string) {
 export const authRouter = router({
   login: publicProcedure
     .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
-        const { token, userId } = await loginUser(input.email, input.password);
+        const { token, userId } = await loginUser(input.email, input.password, ctx.ip);
         return { token, session: await buildSessionPayload(userId) };
       } catch (err) {
         if (err instanceof AuthError) {

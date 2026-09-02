@@ -22,7 +22,29 @@ import { createContext } from "yughma-backend/dist/trpc/context.js";
  * there depends on this file) — kept as an alternate entry point for anyone
  * who wants to run the backend outside of Next.js, not the primary path.
  */
+/** Same reasoning as the standalone server's own cap (`backend/src/index.ts`)
+ * — nothing legitimate sends this route a large body, since real file
+ * uploads go browser-direct to R2. The hosting platform (Vercel) enforces
+ * its own ceiling on serverless function bodies too, but that's an infra
+ * default, not something this app controls or should rely on alone. */
+const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2 MB
+
+/** Best-effort client IP behind Vercel/Cloudflare-style proxies — see the
+ * standalone server's `clientIp()` for the same caveat: only ever used for
+ * `auth.login`'s IP lockout, not a security boundary by itself. */
+function clientIp(req: Request): string | undefined {
+  const forwarded = req.headers.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined;
+}
+
 function handler(req: Request) {
+  const declaredLength = Number(req.headers.get("content-length") ?? 0);
+  if (declaredLength > MAX_BODY_BYTES) {
+    return new Response(JSON.stringify({ error: "Request body too large." }), {
+      status: 413,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
@@ -30,7 +52,7 @@ function handler(req: Request) {
     createContext: async ({ req }) => {
       const header = req.headers.get("authorization");
       const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
-      return createContext(token);
+      return createContext(token, clientIp(req));
     },
   });
 }

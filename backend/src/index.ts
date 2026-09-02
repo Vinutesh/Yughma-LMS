@@ -19,14 +19,55 @@ import { createContext } from "./trpc/context.js";
  * instead, which is the safer default once same-origin makes CSRF the actual
  * concern to design against rather than token storage.
  */
+/** Best-effort client IP: `X-Forwarded-For`'s first hop behind a proxy/LB,
+ * falling back to the raw socket for a direct connection. Only ever used for
+ * `auth.login`'s IP lockout — not a security boundary on its own (a header is
+ * trivially spoofable directly against this process), but this server is
+ * meant to sit behind a proxy that sets it truthfully, same assumption
+ * `CORS_ORIGIN` already makes about the deployment shape. */
+function clientIp(req: http.IncomingMessage): string | undefined {
+  const forwarded = req.headers["x-forwarded-for"];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0];
+  return first?.trim() || req.socket.remoteAddress || undefined;
+}
+
 const trpcHandler = createHTTPHandler({
   router: appRouter,
   createContext: async ({ req }) => {
     const header = req.headers.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
-    return createContext(token);
+    return createContext(token, clientIp(req));
   },
 });
+
+/** Every real file upload goes browser-direct to R2 via a presigned URL —
+ * nothing legitimate ever sends this server a large request body. Without a
+ * cap, a single client can stream an unbounded body and exhaust memory
+ * before any resolver (or even zod) gets a chance to reject it. Checked
+ * against the declared `Content-Length` and, since that header is
+ * client-supplied and chunked transfer can omit it entirely, enforced again
+ * by counting bytes as they actually arrive. */
+const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2 MB — generous for any real JSON payload here.
+
+function rejectIfOversized(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+  const declared = Number(req.headers["content-length"] ?? 0);
+  if (declared > MAX_BODY_BYTES) {
+    res.writeHead(413, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "Request body too large." }));
+    req.destroy();
+    return true;
+  }
+  let received = 0;
+  req.on("data", (chunk: Buffer) => {
+    received += chunk.length;
+    if (received > MAX_BODY_BYTES) {
+      if (!res.headersSent) {
+        res.writeHead(413, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "Request body too large." }));
+      }
+      req.destroy();
+    }
+  });
+  return false;
+}
 
 /**
  * The Next.js frontend runs on a different origin (localhost:3000 vs this
@@ -64,6 +105,7 @@ const server = http.createServer((req, res) => {
     res.end();
     return;
   }
+  if (rejectIfOversized(req, res)) return;
   trpcHandler(req, res);
 });
 

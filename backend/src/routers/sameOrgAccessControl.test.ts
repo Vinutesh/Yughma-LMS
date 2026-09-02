@@ -65,12 +65,16 @@ describe("same-org access control — draft/invite-only content and course-threa
     outsiderId = outsider.id;
 
     const draftCourse = await rawPrisma.course.create({
-      data: { orgId, title: "Draft course", status: "draft", visibility: "invite", createdByUserId: instructorId },
+      data: { orgId, title: "Draft course", status: "draft", createdByUserId: instructorId },
     });
     draftCourseId = draftCourse.id;
 
+    // Named for the access pattern under test (enrollment-gated, not
+    // catalog-visible), not a real `visibility` field — that field (along
+    // with `enrollmentMode`) was intentionally dropped from the schema when
+    // self-service enrollment was removed; see courses.ts's own comment.
     const inviteCourse = await rawPrisma.course.create({
-      data: { orgId, title: "Published invite-only course", status: "published", visibility: "invite", createdByUserId: instructorId },
+      data: { orgId, title: "Published invite-only course", status: "published", createdByUserId: instructorId },
     });
     inviteCourseId = inviteCourse.id;
 

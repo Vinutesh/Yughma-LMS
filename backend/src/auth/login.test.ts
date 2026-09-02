@@ -27,6 +27,8 @@ describe("login (real database)", () => {
 
   const nonexistentEmail = "nobody@nowhere.test";
 
+  const testIp = "203.0.113.42"; // TEST-NET-3 (RFC 5737) — never a real client.
+
   beforeEach(async () => {
     // Lockout state must not leak between test cases OR between runs of this
     // file — the "nonexistent email" test below calls login() with no
@@ -34,6 +36,7 @@ describe("login (real database)", () => {
     // this suite enough times without this would eventually trip the real
     // lockout it's not testing for.
     await rawPrisma.loginAttempt.deleteMany({ where: { email: { in: [email, nonexistentEmail] } } });
+    await rawPrisma.loginIpAttempt.deleteMany({ where: { ip: testIp } });
   });
 
   afterAll(async () => {
@@ -77,6 +80,33 @@ describe("login (real database)", () => {
     // Locked out now even with the CORRECT password — the point of a lockout.
     await expect(login(email, password)).rejects.toMatchObject({ code: "locked_out" });
   });
+
+  it("locks out an IP after enough failures across DIFFERENT emails, even though no single email trips its own lockout", async () => {
+    // 19 failures spread across 19 distinct nonexistent emails — none of
+    // them individually reaches the per-email threshold of 3, but the
+    // shared IP should still trip its own (higher) threshold.
+    for (let i = 0; i < 19; i++) {
+      await expect(login(`ip-flood-${i}@nowhere.test`, "wrong", testIp)).rejects.toMatchObject({
+        code: "invalid_credentials",
+      });
+    }
+    await expect(login("ip-flood-19@nowhere.test", "wrong", testIp)).rejects.toMatchObject({ code: "locked_out" });
+
+    // Locked out now even for the account's own correct credentials, as
+    // long as the request still comes from the flagged IP.
+    await expect(login(email, password, testIp)).rejects.toMatchObject({ code: "locked_out" });
+
+    // The same account from a DIFFERENT IP is unaffected — this is an IP
+    // lockout, not a hidden second email lockout.
+    const { token } = await login(email, password, "198.51.100.7");
+    await deleteSession(token);
+
+    // Clean up so a re-run of this suite doesn't find these 20 throwaway
+    // emails already sitting at failCount 1 and trip their own per-email
+    // lockout a few runs from now.
+    await rawPrisma.loginIpAttempt.deleteMany({ where: { ip: testIp } });
+    await rawPrisma.loginAttempt.deleteMany({ where: { email: { startsWith: "ip-flood-" } } });
+  }, 60_000); // 20 sequential DB round-trips against Neon — past the default 15s test timeout.
 
   it("a deactivated user cannot log in even with the correct password", async () => {
     await rawPrisma.user.update({ where: { id: userId }, data: { status: "deactivated" } });

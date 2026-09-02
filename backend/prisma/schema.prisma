@@ -186,6 +186,17 @@ model LoginAttempt {
   lockedUntil DateTime?
 }
 
+/// Same shape as `LoginAttempt`, keyed by client IP instead of email — closes
+/// the gap a per-email lockout alone leaves open: credential-stuffing across
+/// many different email addresses from one source never trips any single
+/// email's counter. Higher threshold/window than the per-email lockout since
+/// one IP can legitimately represent an office/NAT full of real users.
+model LoginIpAttempt {
+  ip          String    @id
+  failCount   Int       @default(0)
+  lockedUntil DateTime?
+}
+
 model Department {
   id       String       @id @default(cuid())
   org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)

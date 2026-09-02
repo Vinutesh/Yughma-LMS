@@ -18,6 +18,10 @@ export interface Context {
   /** The raw session token, if one was presented — needed by `logout` to
    * delete the specific session row rather than every session for the user. */
   token?: string;
+  /** Client IP, best-effort (from the entry point's own header/socket
+   * inspection — see index.ts / the frontend Route Handler). Used only by
+   * `auth.login`'s IP-based lockout; nothing else should need it. */
+  ip?: string;
   /**
    * Tenant-scoped Prisma client — undefined until a session exists, since
    * there's no orgId to scope to before that. Every resolver on an
@@ -42,11 +46,12 @@ export interface Context {
  * request, which is valid — `publicProcedure`s (like `auth.login`) run with
  * `session: null`.
  */
-export async function createContext(token: string | undefined): Promise<Context> {
+export async function createContext(token: string | undefined, ip?: string): Promise<Context> {
   const session = await resolveSession(token);
   return {
     session,
     token,
+    ip,
     db: session ? scopedPrisma(session.orgId) : undefined,
     rawDb: rawPrisma,
   };

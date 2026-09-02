@@ -5,6 +5,14 @@ import { createSession } from "./session.js";
 const LOCKOUT_THRESHOLD = 3;
 const LOCKOUT_DURATION_MS = 30_000;
 
+/** Separate, looser threshold than the per-email lockout above — this one
+ * exists to catch credential stuffing spread across many different email
+ * addresses from a single source, which never trips any one email's
+ * counter. Higher/longer than the per-email lockout since one IP can
+ * legitimately be an office/NAT full of real users, not just one attacker. */
+const IP_LOCKOUT_THRESHOLD = 20;
+const IP_LOCKOUT_DURATION_MS = 10 * 60_000;
+
 export class AuthError extends Error {
   code: "invalid_credentials" | "locked_out";
   retryAt?: number;
@@ -30,6 +38,10 @@ export class AuthError extends Error {
 export async function login(
   email: string,
   password: string,
+  /** Client IP, when the caller has one to give (the HTTP entry points do;
+   * direct `appRouter.createCaller()` test callers don't, and that's fine —
+   * IP throttling simply doesn't apply to those). */
+  ip?: string,
 ): Promise<{ token: string; userId: string }> {
   const normalizedEmail = email.toLowerCase();
   const now = new Date();
@@ -37,6 +49,11 @@ export async function login(
   const attempt = await rawPrisma.loginAttempt.findUnique({ where: { email: normalizedEmail } });
   if (attempt?.lockedUntil && attempt.lockedUntil > now) {
     throw new AuthError("locked_out", "Too many attempts. Try again shortly.", attempt.lockedUntil.getTime());
+  }
+
+  const ipAttempt = ip ? await rawPrisma.loginIpAttempt.findUnique({ where: { ip } }) : null;
+  if (ipAttempt?.lockedUntil && ipAttempt.lockedUntil > now) {
+    throw new AuthError("locked_out", "Too many attempts from this network. Try again shortly.", ipAttempt.lockedUntil.getTime());
   }
 
   // Email is treated as effectively unique across the whole system for login
@@ -48,6 +65,29 @@ export async function login(
 
   if (!valid) {
     const fails = (attempt?.failCount ?? 0) + 1;
+    const ipFails = ip ? (ipAttempt?.failCount ?? 0) + 1 : 0;
+
+    // IP lockout is checked/recorded independently of the per-email one
+    // below — an attacker rotating through many emails from one IP must
+    // still trip this, even though no single email's counter ever reaches
+    // its own threshold.
+    if (ip && ipFails >= IP_LOCKOUT_THRESHOLD) {
+      const retryAt = new Date(now.getTime() + IP_LOCKOUT_DURATION_MS);
+      await rawPrisma.loginIpAttempt.upsert({
+        where: { ip },
+        create: { ip, failCount: 0, lockedUntil: retryAt },
+        update: { failCount: 0, lockedUntil: retryAt },
+      });
+      throw new AuthError("locked_out", "Too many attempts from this network. Try again shortly.", retryAt.getTime());
+    }
+    if (ip) {
+      await rawPrisma.loginIpAttempt.upsert({
+        where: { ip },
+        create: { ip, failCount: ipFails },
+        update: { failCount: ipFails, lockedUntil: null },
+      });
+    }
+
     if (fails >= LOCKOUT_THRESHOLD) {
       const retryAt = new Date(now.getTime() + LOCKOUT_DURATION_MS);
       await rawPrisma.loginAttempt.upsert({
