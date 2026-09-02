@@ -13,3 +13,4 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 coverage/
+backend/src/generated/

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../generated/prisma/client.js";
 import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
 import type { ScopedDb } from "../trpc/context.js";
 import type { rawPrisma } from "../db.js";

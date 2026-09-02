@@ -1,7 +1,17 @@
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+import { PrismaClient } from "./generated/prisma/client.js";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
+
+/**
+ * The classic `@prisma/client` package used to load `.env` itself as an
+ * import side effect, which every local run (dev server, tests) quietly
+ * relied on — gone now that the generated client is our own code, not that
+ * package, so it's explicit here instead. `dotenv/config` no-ops (doesn't
+ * throw) when no `.env` file exists, which is the real production/Vercel
+ * case — env vars come from the platform directly there, never a file.
+ */
 
 /**
  * Neon's driver adapter, not Prisma's native query-engine binary — talks to

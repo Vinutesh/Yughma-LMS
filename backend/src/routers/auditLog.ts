@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AuditActionType } from "@prisma/client";
+import { AuditActionType } from "../generated/prisma/client.js";
 import { router, requirePermission } from "../trpc/trpc.js";
 
 /**

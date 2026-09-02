@@ -8,17 +8,24 @@
 // enforcement is the tRPC middleware in `src/trpc/context.ts`, which injects
 // the filter automatically so no resolver can omit it. See BACKEND_PLAN.md.
 
-// `driverAdapters` — Prisma talks to Neon over its own HTTP/WebSocket
-// driver (`@prisma/adapter-neon`, wired up in `src/db.ts`) instead of
-// Prisma's native query-engine binary. Not a preference: the native binary
-// repeatedly failed to deploy on Vercel (ENOENT copying a corrupted/missing
-// engine from Vercel's own build-image cache, reproduced across three
-// deploys, including with the build cache explicitly cleared — a live
-// Prisma/Vercel platform bug, not anything in this repo). The adapter path
-// needs no native binary at all, which is also the pattern Prisma's own
-// docs recommend for Neon + Vercel regardless of that bug.
+// Rust-free client (`provider = "prisma-client"` + `engineType = "client"`,
+// GA since Prisma 6.16) — queries compile to a plan in a WASM query
+// compiler and execute in TypeScript over `@prisma/adapter-neon` (wired up
+// in `src/db.ts`), so there is no Rust query-engine *binary* to fetch at
+// generate time at all. Not a style preference: the classic
+// `prisma-client-js` generator (even with a driver adapter supplying the DB
+// connection) still fetches that native binary during `prisma generate` —
+// confirmed by reproducing the exact same failure with the adapter already
+// wired up — and that fetch reliably ENOENT's on Vercel's build image
+// (copying from a corrupted/missing entry under
+// /vercel/.cache/prisma/master/<hash>/, across multiple deploys, including
+// with the build cache explicitly cleared). Only this generator drops the
+// binary dependency entirely, which is what actually closes the bug rather
+// than routing around one symptom of it.
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client"
+  engineType = "client"
+  output     = "../src/generated/prisma"
 }
 
 datasource db {
