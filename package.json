@@ -1,0 +1,5 @@
+{
+  "name": "yughma-lms",
+  "private": true,
+  "workspaces": ["frontend", "backend", "storage-worker"]
+}

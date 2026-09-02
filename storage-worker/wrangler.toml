@@ -1,0 +1,22 @@
+name = "yughma-content"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Binds this Worker directly to the R2 bucket — Worker-to-R2 traffic stays
+# entirely inside Cloudflare's network (no egress charge, no round trip
+# through the public internet), which is the actual cost/scale win of this
+# whole setup. Must be the SAME bucket name as `R2_BUCKET_NAME` in
+# backend/.env.
+[[r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "yughma-content"
+
+# Uncomment and set once you've attached a custom domain in the Cloudflare
+# dashboard (Workers & Pages → yughma-content → Settings → Domains &
+# Routes). Until then this Worker is reachable at its default
+# yughma-content.<your-subdomain>.workers.dev URL, which already runs on
+# Cloudflare's edge — a custom domain is a nicer URL, not a functional
+# requirement.
+# routes = [
+#   { pattern = "content.yourdomain.com", custom_domain = true }
+# ]

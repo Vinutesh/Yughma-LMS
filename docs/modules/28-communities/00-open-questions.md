@@ -1,0 +1,9 @@
+# Open Questions — Communities
+
+Per [MODULES.md](../../MODULES.md) §17: high build cost, moderate purchase-decision impact for most B2B buyers — deliberately last, per [ROADMAP.md](../../ROADMAP.md)'s Phase 5 note ("revisit if a design partner asks for it earlier"). Scope narrowed to the smallest version that's still genuinely useful:
+
+- **Two kinds of discussion, one thread model:** per-course discussion (scoped to a course, visible to enrolled learners + the instructor) and org-wide discussion (visible to everyone in the org) — same thread/post/reply data shape, different visibility scope. Not a separate "Groups" concept in this pass — [MODULES.md](../../MODULES.md)'s "Groups" screen is deferred; a course *is* the group for now, which covers the most common real use case (a cohort discussing their shared course) without inventing a second membership model alongside Enrollments.
+- **A community feed is the org-wide thread list** — not a separate aggregated activity feed pulling from every module (that's closer to Notifications' job). Kept as one thing: threads, listed.
+- **Moderation is real but simple:** any instructor/manager (`courses:edit`) can pin, lock, or remove a thread/post; a learner can report one. A moderation queue lists reported content for review. No auto-moderation, no content filtering — human review only.
+- **No rich media in posts** — text only (with the same lightweight formatting-none approach used everywhere else in this build, e.g. lesson text bodies). Attachments would route through Content Library like everything else, but aren't in this pass's scope.
+- **Notifications integration**: a reply to your thread or a mention fires a notification through the existing `notify()` fan-in (Module 19), under a new "Community" category — not a new notification pipeline.

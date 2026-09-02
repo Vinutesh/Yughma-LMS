@@ -1,0 +1,908 @@
+// Prisma schema — a close-to-direct translation of
+// `frontend/src/types/domain.ts`, which is itself the product of 5 build
+// phases of design work. Every model here has a frontend counterpart; keep
+// them in sync rather than letting this drift into its own shape.
+//
+// Tenant isolation: every tenant-scoped model carries `orgId` with an index.
+// That column existing is necessary but not sufficient — the actual
+// enforcement is the tRPC middleware in `src/trpc/context.ts`, which injects
+// the filter automatically so no resolver can omit it. See BACKEND_PLAN.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Organization, Users, Roles
+// ---------------------------------------------------------------------------
+
+enum SubscriptionStatus {
+  active
+  past_due
+  canceled
+}
+
+model Organization {
+  id                 String    @id @default(cuid())
+  name               String
+  /// Exactly one row should ever have this true — the Yughma Tech
+  /// organization that owns every course/video/quiz/certificate template.
+  /// Client companies (isPlatform = false) never author content; they only
+  /// hold Enrollment grants (access) into the platform org's courses,
+  /// created by a platform admin, never self-service. See
+  /// `trpc/trpc.ts`'s `requirePlatformAdmin` and `routers/platform.ts`.
+  isPlatform         Boolean   @default(false)
+  industry           String?
+  size               String?
+  logoUrl            String?
+  accentColor        String?
+  sessionTimeoutHours Int?
+  requireSso         Boolean   @default(false)
+  trialEndsAt        DateTime?
+  plan               String?
+  planChosenAt       DateTime?
+  seatLimit          Int?
+  subscriptionStatus SubscriptionStatus?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  paymentMethodBrand String?
+  paymentMethodLast4 String?
+  nextInvoiceAt      DateTime?
+  createdAt          DateTime  @default(now())
+
+  users               User[]
+  departments         Department[]
+  teams               Team[]
+  roles               Role[]
+  courses             Course[]
+  assets              Asset[]
+  assetFolders        AssetFolder[]
+  assignments         Assignment[]
+  quizzes             Quiz[]
+  certificateTemplates CertificateTemplate[]
+  certificates        Certificate[]
+  paths               LearningPath[]
+  careerPaths         CareerPath[]
+  academies           Academy[]
+  calendarEvents      CalendarEvent[]
+  notifications       NotificationItem[]
+  auditLogEntries     AuditLogEntry[]
+  skills              Skill[]
+  invoices            Invoice[]
+  seatRequests        SeatRequest[]
+  integrations        Integration[]
+  webhooks            Webhook[]
+  apiKeys             ApiKeyRecord[]
+  threads             Thread[]
+  contentReports      ContentReport[]
+  xapiStatements      XapiStatement[]
+  lrsConnection       LrsConnection?
+}
+
+enum UserStatus {
+  active
+  deactivated
+}
+
+model User {
+  id           String     @id @default(cuid())
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId        String
+  name         String
+  email        String
+  passwordHash String
+  /// Set true whenever a platform admin creates an account with a generated
+  /// temp password (see `routers/platform.ts`'s `createClientUser` and
+  /// `prisma/seed.ts`) — forces the frontend to route the person through
+  /// `auth.changePassword` before anything else, so a relayed temp password
+  /// doesn't stay the permanent one indefinitely.
+  mustChangePassword Boolean @default(false)
+  status       UserStatus @default(active)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  teamId       String?
+  team         Team?      @relation(fields: [teamId], references: [id])
+  roles        UserRole[]
+  createdAt    DateTime   @default(now())
+
+  enrollments        Enrollment[]
+  submissions        Submission[]
+  quizAttempts       QuizAttempt[]
+  certificates       Certificate[]
+  pathEnrollments    PathEnrollment[]
+  notifications      NotificationItem[]
+  notificationPrefs  NotificationPreference[]
+  calendarEvents     CalendarEvent[]      @relation("EventCreator")
+  auditLogAsActor    AuditLogEntry[]      @relation("AuditActor")
+  threadsCreated     Thread[]             @relation("ThreadAuthor")
+  posts              Post[]
+  contentReports     ContentReport[]      @relation("Reporter")
+  seatRequests       SeatRequest[]
+  assetsUploaded     Asset[]              @relation("AssetUploader")
+  coursesCreated     Course[]             @relation("CourseCreator")
+  authSessions       AuthSession[]
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+model Role {
+  id           String       @id @default(cuid())
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId        String
+  name         String
+  isSystemRole Boolean      @default(false)
+  permissions  Permission[]
+  users        UserRole[]
+
+  @@index([orgId])
+}
+
+model Permission {
+  id       String @id @default(cuid())
+  role     Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId   String
+  resource String
+  action   String // "view" | "edit" | "manage"
+
+  @@unique([roleId, resource, action])
+}
+
+model UserRole {
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId String
+
+  @@id([userId, roleId])
+}
+
+/// Database-backed sessions, not JWT — revocable, which matters once
+/// impersonation and audit logging are real (see BACKEND_PLAN.md). Looked up
+/// via `rawDb`, never the tenant-scoped client: there's no orgId to scope to
+/// before the token resolves to a user.
+model AuthSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
+/// Tracks failed logins by the *raw email string*, not a user id — mirrors
+/// the frontend mock's lockout behavior (3 fails / 30s), and deliberately
+/// covers non-existent emails too, so probing for which addresses have
+/// accounts doesn't get a different rate limit than a real one.
+model LoginAttempt {
+  email       String    @id
+  failCount   Int       @default(0)
+  lockedUntil DateTime?
+}
+
+model Department {
+  id       String       @id @default(cuid())
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId    String
+  name     String
+  archived Boolean      @default(false)
+  teams    Team[]
+  users    User[]
+
+  @@index([orgId])
+}
+
+model Team {
+  id           String     @id @default(cuid())
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId        String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  departmentId String
+  name         String
+  archived     Boolean    @default(false)
+  users        User[]
+
+  @@index([orgId])
+}
+
+// ---------------------------------------------------------------------------
+// Content Library
+// ---------------------------------------------------------------------------
+
+enum AssetKind {
+  video
+  document
+  image
+  other
+}
+
+model AssetFolder {
+  id     String       @id @default(cuid())
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId  String
+  name   String
+  assets Asset[]
+
+  @@index([orgId])
+}
+
+model Asset {
+  id               String       @id @default(cuid())
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId            String
+  name             String
+  kind             AssetKind
+  sizeBytes        BigInt
+  durationSeconds  Int?
+  folder           AssetFolder? @relation(fields: [folderId], references: [id])
+  folderId         String?
+  tags             String[]
+  uploadedBy       User         @relation("AssetUploader", fields: [uploadedByUserId], references: [id])
+  uploadedByUserId String
+  uploadedAt       DateTime     @default(now())
+  /// Object storage key (R2/S3) — never the file itself.
+  storageKey       String?
+  lessons          Lesson[]
+
+  @@index([orgId])
+}
+
+// ---------------------------------------------------------------------------
+// Courses, Lessons, Enrollments
+// ---------------------------------------------------------------------------
+
+enum CourseStatus {
+  draft
+  published
+  archived
+}
+
+model Course {
+  id                   String           @id @default(cuid())
+  org                  Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId                String
+  title                String
+  description          String           @default("")
+  status               CourseStatus     @default(draft)
+  prerequisites        CoursePrerequisite[] @relation("Course")
+  requiredFor          CoursePrerequisite[] @relation("Prerequisite")
+  skills               CourseSkill[]
+  certificateTemplate  CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  certificateTemplateId String?
+  createdBy            User             @relation("CourseCreator", fields: [createdByUserId], references: [id])
+  createdByUserId      String
+  createdAt            DateTime         @default(now())
+  publishedAt          DateTime?
+
+  modules      CourseModule[]
+  lessons      Lesson[]
+  enrollments  Enrollment[]
+  assignments  Assignment[]
+  quizzes      Quiz[]
+  pathCourses  PathCourse[]
+  academyCourses AcademyCourse[]
+  calendarEvents CalendarEvent[]
+  threads      Thread[]
+
+  @@index([orgId])
+}
+
+model CoursePrerequisite {
+  course         Course @relation("Course", fields: [courseId], references: [id], onDelete: Cascade)
+  courseId       String
+  prerequisite   Course @relation("Prerequisite", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+  prerequisiteId String
+
+  @@id([courseId, prerequisiteId])
+}
+
+model CourseModule {
+  id       String   @id @default(cuid())
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  title    String
+  order    Int
+  lessons  Lesson[]
+
+  @@index([courseId])
+}
+
+enum LessonContentType {
+  text
+  video
+  file
+  link
+  scorm
+}
+
+enum ScormPackageStatus {
+  processing
+  ready
+}
+
+model Lesson {
+  id               String            @id @default(cuid())
+  course           Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId         String
+  module           CourseModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId         String
+  title            String
+  order            Int
+  contentType      LessonContentType
+  body             String?
+  asset            Asset?            @relation(fields: [assetId], references: [id])
+  assetId          String?
+  url              String?
+  estimatedMinutes Int?
+  scormStatus      ScormPackageStatus?
+
+  @@index([courseId])
+  @@index([moduleId])
+}
+
+enum EnrollmentStatus {
+  requested
+  active
+  completed
+}
+
+model Enrollment {
+  id                  String           @id @default(cuid())
+  course              Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId            String
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId              String
+  status              EnrollmentStatus @default(active)
+  enrolledAt          DateTime         @default(now())
+  completedLessonIds  String[]
+  completedAt         DateTime?
+
+  @@unique([courseId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Assignments
+// ---------------------------------------------------------------------------
+
+enum SubmissionType {
+  text
+  file
+  both
+}
+
+model Assignment {
+  id               String         @id @default(cuid())
+  org              Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId            String
+  course           Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId         String
+  title            String
+  instructions     String
+  dueAt            DateTime?
+  submissionType   SubmissionType
+  pointsPossible   Int
+  createdByUserId  String
+  createdAt        DateTime       @default(now())
+
+  submissions Submission[]
+
+  @@index([orgId])
+  @@index([courseId])
+}
+
+model Submission {
+  id             String     @id @default(cuid())
+  assignment     Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId   String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  submittedAt    DateTime   @default(now())
+  text           String?
+  assetId        String?
+  score          Int?
+  feedback       String?
+  gradedByUserId String?
+  gradedAt       DateTime?
+  flagged        Boolean    @default(false)
+
+  @@index([assignmentId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Quizzes / Assessments
+// ---------------------------------------------------------------------------
+
+enum QuizKind {
+  quiz
+  assessment
+}
+
+enum QuizQuestionType {
+  mcq
+  truefalse
+}
+
+model Quiz {
+  id                    String   @id @default(cuid())
+  org                   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId                 String
+  course                Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId              String
+  title                 String
+  kind                  QuizKind @default(quiz)
+  timeLimitMinutes      Int?
+  randomizeOrder        Boolean  @default(false)
+  retakesAllowed        Int      @default(0)
+  passingScorePercent   Int?
+  availableFrom         DateTime?
+  availableTo           DateTime?
+  proctoringRequired    Boolean  @default(false)
+  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  certificateTemplateId String?
+  createdByUserId       String
+  createdAt             DateTime @default(now())
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([orgId])
+  @@index([courseId])
+}
+
+model QuizQuestion {
+  id              String           @id @default(cuid())
+  quiz            Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId          String
+  order           Int
+  type            QuizQuestionType
+  prompt          String
+  /// [{ id, text }, ...] — kept as JSON since options have no independent
+  /// lifecycle of their own (never queried, never reordered outside the quiz).
+  options         Json
+  correctOptionId String
+  points          Int
+
+  @@index([quizId])
+}
+
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  /// { questionId: chosenOptionId }
+  answers     Json
+  score       Int?
+
+  @@index([quizId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Certificates
+// ---------------------------------------------------------------------------
+
+model CertificateTemplate {
+  id        String       @id @default(cuid())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId     String
+  name      String
+  createdAt DateTime     @default(now())
+
+  courses      Course[]
+  quizzes      Quiz[]
+  paths        LearningPath[]
+  certificates Certificate[]
+
+  @@index([orgId])
+}
+
+enum CertificateSourceKind {
+  course
+  assessment
+  path
+  manual
+}
+
+model Certificate {
+  id                String                @id @default(cuid())
+  org               Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId             String
+  template          CertificateTemplate   @relation(fields: [templateId], references: [id])
+  templateId        String
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  sourceKind        CertificateSourceKind
+  sourceId          String?
+  sourceTitle       String
+  issuedAt          DateTime              @default(now())
+  verificationCode  String                @unique
+  revoked           Boolean               @default(false)
+  revokedAt         DateTime?
+  revokedByUserId   String?
+
+  @@index([orgId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Learning Paths, Career Paths, Academies, Skills
+// ---------------------------------------------------------------------------
+
+enum PathStatus {
+  draft
+  published
+}
+
+model LearningPath {
+  id                    String     @id @default(cuid())
+  org                   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId                 String
+  title                 String
+  description           String     @default("")
+  status                PathStatus @default(draft)
+  courses               PathCourse[]
+  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  certificateTemplateId String?
+  createdByUserId       String
+  createdAt             DateTime   @default(now())
+  publishedAt           DateTime?
+
+  enrollments PathEnrollment[]
+
+  @@index([orgId])
+}
+
+model PathCourse {
+  path     LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  pathId   String
+  course   Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  order    Int
+
+  @@id([pathId, courseId])
+}
+
+model PathEnrollment {
+  id          String       @id @default(cuid())
+  path        LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  pathId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  enrolledAt  DateTime     @default(now())
+  completedAt DateTime?
+
+  @@unique([pathId, userId])
+}
+
+model Skill {
+  id       String       @id @default(cuid())
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId    String
+  name     String
+  archived Boolean      @default(false)
+  courses  CourseSkill[]
+
+  @@index([orgId])
+}
+
+model CourseSkill {
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  skill    Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillId  String
+
+  @@id([courseId, skillId])
+}
+
+model CareerPath {
+  id              String       @id @default(cuid())
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId           String
+  title           String
+  status          PathStatus   @default(draft)
+  skillIds        String[]
+  createdByUserId String
+  createdAt       DateTime     @default(now())
+  publishedAt     DateTime?
+
+  @@index([orgId])
+}
+
+model Academy {
+  id              String       @id @default(cuid())
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId           String
+  title           String
+  description     String       @default("")
+  status          PathStatus   @default(draft)
+  heroImageAssetId String?
+  pathIds         String[]
+  courses         AcademyCourse[]
+  createdByUserId String
+  createdAt       DateTime     @default(now())
+  publishedAt     DateTime?
+
+  @@index([orgId])
+}
+
+model AcademyCourse {
+  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  academyId String
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String
+
+  @@id([academyId, courseId])
+}
+
+// ---------------------------------------------------------------------------
+// Calendar
+// ---------------------------------------------------------------------------
+
+model CalendarEvent {
+  id              String       @id @default(cuid())
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId           String
+  course          Course?      @relation(fields: [courseId], references: [id])
+  courseId        String?
+  title           String
+  description     String?
+  startsAt        DateTime
+  link            String?
+  createdBy       User         @relation("EventCreator", fields: [createdByUserId], references: [id])
+  createdByUserId String
+
+  @@index([orgId])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+enum NotificationCategory {
+  grading
+  deadlines
+  course_updates
+  team_admin
+  community
+}
+
+model NotificationItem {
+  id        String               @id @default(cuid())
+  org       Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId     String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  category  NotificationCategory
+  title     String
+  targetUrl String?
+  read      Boolean              @default(false)
+  createdAt DateTime             @default(now())
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+  category NotificationCategory
+  inApp    Boolean              @default(true)
+  email    Boolean              @default(false)
+
+  @@id([userId, category])
+}
+
+// ---------------------------------------------------------------------------
+// Audit Log
+// ---------------------------------------------------------------------------
+
+enum AuditActionType {
+  role_changed
+  user_deactivated
+  user_reactivated
+  course_archived
+  course_published
+  certificate_revoked
+  org_settings_changed
+  plan_changed
+}
+
+model AuditLogEntry {
+  id            String          @id @default(cuid())
+  org           Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId         String
+  at            DateTime        @default(now())
+  actor         User            @relation("AuditActor", fields: [actorUserId], references: [id])
+  actorUserId   String
+  action        AuditActionType
+  summary       String
+  targetLabel   String?
+  /// Free-form key-value detail rendered in the detail drawer.
+  detail        Json?
+
+  @@index([orgId])
+}
+
+// ---------------------------------------------------------------------------
+// Billing
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id          String       @id @default(cuid())
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String
+  amountCents Int
+  issuedAt    DateTime     @default(now())
+  status      String // "paid" | "open"
+
+  @@index([orgId])
+}
+
+model SeatRequest {
+  id               String       @id @default(cuid())
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId            String
+  requestedBy      User         @relation(fields: [requestedByUserId], references: [id])
+  requestedByUserId String
+  additionalSeats  Int
+  requestedAt      DateTime     @default(now())
+
+  @@index([orgId])
+}
+
+// ---------------------------------------------------------------------------
+// Integrations
+// ---------------------------------------------------------------------------
+
+model Integration {
+  id          String       @id @default(cuid())
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String
+  kind        String
+  connected   Boolean      @default(false)
+  connectedAt DateTime?
+  config      Json         @default("{}")
+
+  @@unique([orgId, kind])
+}
+
+model Webhook {
+  id        String            @id @default(cuid())
+  org       Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId     String
+  url       String
+  events    String[]
+  secret    String
+  createdAt DateTime          @default(now())
+  deliveries WebhookDelivery[]
+
+  @@index([orgId])
+}
+
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  webhook    Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  webhookId  String
+  event      String
+  at         DateTime @default(now())
+  statusCode Int
+
+  @@index([webhookId])
+}
+
+model ApiKeyRecord {
+  id         String    @id @default(cuid())
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId      String
+  name       String
+  /// Only the masked form + a hash of the real key are ever stored — the real
+  /// value is returned once, at creation, and never persisted in plaintext.
+  maskedKey  String
+  keyHash    String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revoked    Boolean   @default(false)
+
+  @@index([orgId])
+}
+
+// ---------------------------------------------------------------------------
+// SCORM / xAPI
+// ---------------------------------------------------------------------------
+
+model XapiStatement {
+  id          String       @id @default(cuid())
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String
+  actorUserId String
+  verb        String
+  object      String
+  at          DateTime     @default(now())
+
+  @@index([orgId])
+}
+
+model LrsConnection {
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId       String       @id
+  endpointUrl String
+  authKey     String
+  connected   Boolean      @default(false)
+}
+
+// ---------------------------------------------------------------------------
+// Communities
+// ---------------------------------------------------------------------------
+
+enum ThreadScope {
+  course
+  org
+}
+
+model Thread {
+  id              String       @id @default(cuid())
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId           String
+  scope           ThreadScope
+  course          Course?      @relation(fields: [courseId], references: [id])
+  courseId        String?
+  title           String
+  createdBy       User         @relation("ThreadAuthor", fields: [createdByUserId], references: [id])
+  createdByUserId String
+  createdAt       DateTime     @default(now())
+  pinned          Boolean      @default(false)
+  locked          Boolean      @default(false)
+
+  posts Post[]
+
+  @@index([orgId])
+  @@index([courseId])
+}
+
+model Post {
+  id             String   @id @default(cuid())
+  thread         Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId       String
+  author         User     @relation(fields: [authorUserId], references: [id])
+  authorUserId   String
+  body           String
+  createdAt      DateTime @default(now())
+
+  reports ContentReport[]
+
+  @@index([threadId])
+}
+
+enum ReportReason {
+  spam
+  harassment
+  off_topic
+  other
+}
+
+model ContentReport {
+  id               String       @id @default(cuid())
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId            String
+  post             Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId           String
+  reportedBy       User         @relation("Reporter", fields: [reportedByUserId], references: [id])
+  reportedByUserId String
+  reason           ReportReason
+  createdAt        DateTime     @default(now())
+  resolved         Boolean      @default(false)
+
+  @@index([orgId])
+  @@index([postId])
+}

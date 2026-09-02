@@ -1,0 +1,8 @@
+# Open Questions — Full Settings
+
+Rounds out `/manage/settings` beyond Phase 0's General and Departments & Teams tabs — the pieces explicitly deferred at the time:
+
+- **Branding tab** — org logo upload and an accent color picker, deferred from Organization Management (Phase 0) and again from Academies (Phase 3), both of which explicitly punted per-org visual customization to "later." This is that later. Logo goes through the same Content Library asset pipeline as everything else; accent color is a single stored hex value the shell's `--accent` token would read from, once real theming is wired up (frontend-only for now — it changes a preview swatch, not the whole app's live CSS variables, since that's a bigger token-architecture change than this pass's job).
+- **Security tab** — session timeout duration, and an "Require SSO" toggle (inert without a real SSO integration — see [Integrations](../26-integrations/)) — stored settings, not enforced behavior, consistent with how LRS Connection and webhook delivery are also "recorded, not live" in this phase.
+- **Data export & deletion** — a GDPR-shaped self-serve request: "Export all organization data" (mock — would produce a real archive once there's a backend to generate one) and "Delete this organization" (a real, high-consequence confirm flow, gated behind typing the org name, since account-deletion patterns are exactly the kind of destructive action that deserves real friction even in a mock).
+- **No platform-level (cross-org, Yughma-internal) settings** — explicitly out of scope, same boundary the Shell module drew around Super Admin tooling.

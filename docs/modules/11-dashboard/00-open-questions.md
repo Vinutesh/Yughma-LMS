@@ -1,0 +1,8 @@
+# Open Questions — Dashboard
+
+One real refinement to an already-approved decision, plus the usual narrowing — flagging clearly rather than silently deviating:
+
+- **Refinement to the Shell module's "Manage-mode default landing":** the Shell wireframes (approved) sent Manage mode straight to the first permitted section (e.g., an Instructor lands directly on the Courses list). Now that real content exists to summarize (Courses, Assignments, Quizzes), the better default is a proper **Dashboard summary** — "what needs my attention" — with the Courses list one click away, rather than dropping the instructor straight into a list with no orientation. This directly delivers the role-based-dashboards differentiator called out back in [MODULES.md](../../MODULES.md) §3 ("most legacy LMS platforms ship one cluttered dashboard for everyone"). Recommend treating this as the real Manage-mode default going forward; the Shell module's own files aren't being rewritten, this note is the record of the refinement.
+- **4 dashboards in scope:** Learner (already fully wireframed as Shell's "Home" — referenced, not rebuilt here), Instructor, Manager, Org Admin. Super Admin stays explicitly out of scope (Yughma-internal tool, per the Shell module's original decision).
+- **Manager dashboard is real scope**, not speculative — confirmed by the corporate-segment decision in [CLAUDE.md](../../CLAUDE.md) and [ROADMAP.md](../../ROADMAP.md).
+- **The Onboarding checklist widget** (sketched but explicitly marked "owned by Dashboard" in [Onboarding's wireframes](../02-onboarding/04-wireframes.md)) is formally designed here, on the Org Admin dashboard.

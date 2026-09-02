@@ -1,0 +1,8 @@
+# Open Questions — Skills
+
+One real refinement to flag, plus narrowing:
+
+- **Refinement to the Shell module's Learning-mode sidebar:** the approved Shell wireframes list Home / Courses / Learning Paths / Certificates / Calendar — no Skills item. Given Skills is confirmed real, load-bearing scope for the corporate segment (it feeds the future Career Paths module and manager-facing reporting, per [ROADMAP.md](../../ROADMAP.md)), it needs a real learner-facing home. Recommend adding **"My Skills"** as a 6th Learning-mode nav item. Same treatment as the Dashboard module's refinement: noted here as the record of the change, not silently retrofitted into the Shell's own files.
+- **Skill-to-course mapping is an addition to Course Builder's Settings tab** (a multi-select "Skills this course builds"), not a new standalone screen — same reasoning as certificates' "award on completion" toggle living in Course Settings rather than getting its own screen.
+- **Skills taxonomy management (admin) is a simple flat list** — create/rename/archive skill tags. No hierarchy/categories of skills in this pass (e.g., no "Technical > Programming > Python" nesting) — flat tags are enough to prove the concept; a taxonomy hierarchy is a reasonable future refinement once real usage shows whether it's needed.
+- **Skill proficiency is a simple count**, not a scored/leveled system — "3 courses completed" per skill, not "Intermediate" or a 1–5 rating. A more rigorous proficiency model depends on Assessments/Skill Gap Analysis maturing first (the latter is explicitly out of scope per [CLAUDE.md](../../CLAUDE.md)).
