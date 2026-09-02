@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/Drawer";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as auditLogApi from "@/lib/api/resources/auditLog";
@@ -54,7 +54,7 @@ export default function AuditLogPage() {
     enabled: !!session && canView,
   });
 
-  if (!canView) return <ComingSoon title="Audit Log" />;
+  if (!canView) return <AccessDenied title="Audit Log" />;
 
   function exportCsv() {
     reportsApi.downloadCsv(

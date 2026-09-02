@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as academiesApi from "@/lib/api/resources/academies";
@@ -28,7 +28,7 @@ export default function AcademyBuilderPage() {
     enabled: canEdit,
   });
 
-  if (!canEdit) return <ComingSoon title="Academy builder" />;
+  if (!canEdit) return <AccessDenied title="Academy builder" />;
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading academy...</p>;
   if (!academy) return <p className="p-8 text-sm text-text-tertiary">Academy not found.</p>;
 

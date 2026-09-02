@@ -14,12 +14,12 @@ import { useOnboardingStore } from "@/state/onboardingStore";
 import * as orgsApi from "@/lib/api/resources/organizations";
 import * as billingApi from "@/lib/api/resources/billing";
 import * as scormApi from "@/lib/api/resources/scorm";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 export default function SettingsPage() {
   const canManage = usePermission("settings", "view");
-  if (!canManage) return <ComingSoon title="Settings" />;
+  if (!canManage) return <AccessDenied title="Settings" />;
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -834,9 +834,9 @@ function DeleteOrgDialog({
         {blocked ? (
           <>
             <p className="text-sm text-text-secondary">
-              Org deletion isn&apos;t wired to anything real yet — there&apos;s no backend to actually
-              delete from. This confirms the flow (real inventory, typed-name confirmation) is correct
-              for when there is one; it deliberately doesn&apos;t touch this demo&apos;s data.
+              Org deletion isn&apos;t available yet — this confirms the flow works (real inventory,
+              typed-name confirmation) without performing an irreversible delete before that&apos;s
+              actually supported. Contact support if you need an organization removed.
             </p>
             <DialogFooter>
               <Button onClick={() => onOpenChange(false)}>Got it</Button>

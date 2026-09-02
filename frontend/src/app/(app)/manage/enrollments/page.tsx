@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { useSessionStore } from "@/state/sessionStore";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import * as coursesApi from "@/lib/api/resources/courses";
 import * as platformApi from "@/lib/api/resources/platform";
 
@@ -41,7 +41,7 @@ export default function CourseAccessPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["courseGrants", courseId] }),
   });
 
-  if (!isPlatform) return <ComingSoon title="Course Access" />;
+  if (!isPlatform) return <AccessDenied title="Course Access" />;
 
   return (
     <div className="mx-auto max-w-3xl p-8">

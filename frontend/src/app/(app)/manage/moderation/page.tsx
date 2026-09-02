@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as communitiesApi from "@/lib/api/resources/communities";
@@ -39,7 +39,7 @@ export default function ModerationQueuePage() {
     onSuccess: invalidate,
   });
 
-  if (!canModerate) return <ComingSoon title="Moderation Queue" />;
+  if (!canModerate) return <AccessDenied title="Moderation Queue" />;
 
   return (
     <div className="mx-auto max-w-2xl p-8">

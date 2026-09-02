@@ -208,10 +208,6 @@ export function OnboardingWizard({ initialStep = 1 }: { initialStep?: number }) 
             ✓
           </div>
           <h1 className="text-lg font-semibold text-text-primary">You&apos;re all set</h1>
-          <div className="w-full space-y-1.5 text-left text-sm text-text-secondary">
-            <p>✓ We&apos;ve added a sample course so you can see how it works</p>
-            {emails.length > 0 && <p>✓ {emails.length} invite(s) are on their way</p>}
-          </div>
           <p className="text-xs text-text-tertiary">
             Anything you skipped will stay handy in a checklist on your Home.
           </p>

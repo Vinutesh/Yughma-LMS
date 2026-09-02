@@ -61,17 +61,6 @@ export async function login(email: string, password: string): Promise<Session> {
 // `platform.ts`'s resource client), never self-service. See
 // `backend/src/routers/auth.ts`'s matching comment for why.
 
-/**
- * No real-backend equivalent — impersonating another org's account with no
- * password is a security hole, not a feature, outside a mock demo. Kept as a
- * function (rather than deleted) only so `sessionStore`'s type and the
- * still-present `DevRoleSwitcher` component compile; both should be treated
- * as retired. See `DevRoleSwitcher.tsx`.
- */
-export async function getSessionFor(): Promise<Session> {
-  throw new Error("getSessionFor is a mock-only dev tool; it has no real-backend equivalent.");
-}
-
 export async function logout(): Promise<void> {
   try {
     await trpcClient.auth.logout.mutate();

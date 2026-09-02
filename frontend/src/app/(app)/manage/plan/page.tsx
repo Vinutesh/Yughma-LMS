@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/Badge";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as billingApi from "@/lib/api/resources/billing";
@@ -20,7 +20,7 @@ export default function ChoosePlanPage() {
     enabled: !!org && canManage,
   });
 
-  if (!canManage) return <ComingSoon title="Plans" />;
+  if (!canManage) return <AccessDenied title="Plans" />;
   if (!planState) return <p className="p-8 text-sm text-text-tertiary">Loading plans...</p>;
 
   return (

@@ -1,12 +1,12 @@
 "use client";
 
 import { ContentLibrary } from "@/components/content/ContentLibrary";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 export default function ContentLibraryPage() {
   const canEdit = usePermission("courses", "edit");
-  if (!canEdit) return <ComingSoon title="Content Library" />;
+  if (!canEdit) return <AccessDenied title="Content Library" />;
 
   return (
     <div className="mx-auto max-w-5xl p-8">

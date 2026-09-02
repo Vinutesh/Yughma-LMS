@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as certificatesApi from "@/lib/api/resources/certificates";
@@ -46,7 +46,7 @@ export default function ManageCertificatesPage() {
     },
   });
 
-  if (!canEdit) return <ComingSoon title="Certificates" />;
+  if (!canEdit) return <AccessDenied title="Certificates" />;
 
   return (
     <div className="mx-auto max-w-3xl p-8">

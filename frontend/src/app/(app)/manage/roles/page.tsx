@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import * as rolesApi from "@/lib/api/resources/roles";
 import * as usersApi from "@/lib/api/resources/users";
 import { ApiError } from "@/lib/api/errors";
@@ -53,7 +53,7 @@ export default function RolesPage() {
     qc.invalidateQueries({ queryKey: ["allUsers"] });
   };
 
-  if (!canView) return <ComingSoon title="Roles" />;
+  if (!canView) return <AccessDenied title="Roles" />;
 
   if (activeRole) {
     return (

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as academiesApi from "@/lib/api/resources/academies";
@@ -51,7 +51,7 @@ export default function ManageAcademiesPage() {
     },
   });
 
-  if (!canEdit) return <ComingSoon title="Academies" />;
+  if (!canEdit) return <AccessDenied title="Academies" />;
 
   return (
     <div className="mx-auto max-w-3xl p-8">

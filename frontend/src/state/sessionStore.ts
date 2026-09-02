@@ -10,10 +10,6 @@ interface SessionState {
   session: Session | null;
   status: "idle" | "loading" | "authenticated" | "unauthenticated";
   login: (email: string, password: string) => Promise<void>;
-  /** Dev-only: swap the active session to a different seeded user, bypassing
-   * password auth — how the role switcher demonstrates permission/nav
-   * scoping without a real backend. Never exposed outside dev tooling. */
-  loginAsUserId: (userId: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Reflects an org edit (Organization Management's General tab) into the
    * cached session immediately — e.g. so the top bar org label updates
@@ -45,10 +41,6 @@ export const useSessionStore = create<SessionState>()(
       /** Retired now that auth is real — see `DevRoleSwitcher.tsx`. Left in
        * place (rather than removed) only so any lingering caller fails loudly
        * instead of silently doing nothing. */
-      loginAsUserId: async () => {
-        throw new ApiError("forbidden", "Dev role switching is unavailable against the real backend.");
-      },
-
       logout: async () => {
         await authApi.logout();
         set({ session: null, status: "unauthenticated" });

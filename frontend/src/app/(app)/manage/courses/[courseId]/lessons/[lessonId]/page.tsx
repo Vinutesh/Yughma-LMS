@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { ContentLibrary } from "@/components/content/ContentLibrary";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as coursesApi from "@/lib/api/resources/courses";
@@ -30,7 +30,7 @@ export default function LessonEditorPage() {
 
   const lesson = course?.outline.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
 
-  if (!canEdit) return <ComingSoon title="Lesson editor" />;
+  if (!canEdit) return <AccessDenied title="Lesson editor" />;
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading lesson...</p>;
   if (!course || !lesson) return <p className="p-8 text-sm text-text-tertiary">Lesson not found.</p>;
 

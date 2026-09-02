@@ -29,7 +29,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-1 border-r border-border bg-surface-alt p-3">
+    <aside className="flex min-h-0 w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface-alt p-3">
       {hasManageAccess && (
         <div className="mb-2 flex rounded-lg bg-border/60 p-0.5">
           <ModeTab active={mode === "learning"} onClick={() => switchMode("learning")}>

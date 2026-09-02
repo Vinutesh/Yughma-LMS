@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as reportsApi from "@/lib/api/resources/reports";
@@ -33,7 +33,7 @@ export default function ReportsPage() {
   const canView = usePermission("reports", "view");
   const [open, setOpen] = useState<ReportKind | null>(null);
 
-  if (!canView) return <ComingSoon title="Reports" />;
+  if (!canView) return <AccessDenied title="Reports" />;
   if (open) return <ReportView kind={open} onBack={() => setOpen(null)} />;
 
   return (

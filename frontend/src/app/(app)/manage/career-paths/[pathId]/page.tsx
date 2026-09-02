@@ -8,7 +8,7 @@ import { X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as careerPathsApi from "@/lib/api/resources/careerPaths";
@@ -25,7 +25,7 @@ export default function CareerPathBuilderPage() {
     enabled: canEdit,
   });
 
-  if (!canEdit) return <ComingSoon title="Career path builder" />;
+  if (!canEdit) return <AccessDenied title="Career path builder" />;
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading career path...</p>;
   if (!path) return <p className="p-8 text-sm text-text-tertiary">Career path not found.</p>;
 

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as skillsApi from "@/lib/api/resources/skills";
@@ -35,7 +35,7 @@ export default function SkillsPage() {
     onSuccess: invalidate,
   });
 
-  if (!canEdit) return <ComingSoon title="Skills" />;
+  if (!canEdit) return <AccessDenied title="Skills" />;
 
   return (
     <div className="mx-auto max-w-2xl p-8">

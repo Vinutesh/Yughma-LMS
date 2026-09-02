@@ -14,7 +14,7 @@ export default function LoginPage() {
   const login = useSessionStore((s) => s.login);
   const session = useSessionStore((s) => s.session);
 
-  const [email, setEmail] = useState("alex@acmecorp.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,10 +111,6 @@ export default function LoginPage() {
             <Link href="/signup" className="font-semibold text-accent hover:underline">
               Sign up
             </Link>
-          </p>
-          <p className="text-center text-[11px] text-text-tertiary">
-            Mock accounts: alex@acmecorp.com (Org Admin), priya@ (Instructor), raj@ (Manager),
-            jamie@ (Learner) — password: <code className="font-mono">password</code>
           </p>
         </form>
       </CardContent>

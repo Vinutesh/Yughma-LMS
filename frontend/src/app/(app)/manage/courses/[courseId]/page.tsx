@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import * as coursesApi from "@/lib/api/resources/courses";
 import { CourseContentTab } from "@/components/courses/CourseContentTab";
@@ -31,7 +31,7 @@ export default function CourseBuilderPage() {
     enabled: canEdit,
   });
 
-  if (!canEdit) return <ComingSoon title="Course builder" />;
+  if (!canEdit) return <AccessDenied title="Course builder" />;
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading course...</p>;
   if (!course) return <p className="p-8 text-sm text-text-tertiary">Course not found.</p>;
 

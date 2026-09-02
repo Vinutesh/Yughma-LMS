@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { usePermission } from "@/hooks/usePermission";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { useSessionStore } from "@/state/sessionStore";
 import * as dashboardApi from "@/lib/api/resources/dashboard";
@@ -20,7 +20,7 @@ export default function ManageDashboardPage() {
   const canSeeTeam = usePermission("team", "view");
 
   if (!canSeeUsers && !canSeeCourses && !canSeeTeam) {
-    return <ComingSoon title="Dashboard" />;
+    return <AccessDenied title="Dashboard" />;
   }
 
   /**

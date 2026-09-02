@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as scormApi from "@/lib/api/resources/scorm";
@@ -20,7 +20,7 @@ export default function XapiStatementsPage() {
     enabled: !!session && canView,
   });
 
-  if (!canView) return <ComingSoon title="xAPI Statements" />;
+  if (!canView) return <AccessDenied title="xAPI Statements" />;
 
   return (
     <div className="mx-auto max-w-3xl p-8">

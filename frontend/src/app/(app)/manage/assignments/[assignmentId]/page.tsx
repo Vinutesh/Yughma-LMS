@@ -8,7 +8,7 @@ import { Flag } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import * as assignmentsApi from "@/lib/api/resources/assignments";
 import { GradingPanel } from "@/components/assignments/GradingPanel";
@@ -33,7 +33,7 @@ export default function SubmissionQueuePage() {
   const graded = useMemo(() => submissions.filter((s) => s.score !== undefined), [submissions]);
   const grading = submissions.find((s) => s.id === gradingId) ?? null;
 
-  if (!canEdit) return <ComingSoon title="Submissions" />;
+  if (!canEdit) return <AccessDenied title="Submissions" />;
   if (!assignment) return <p className="p-8 text-sm text-text-tertiary">Loading assignment...</p>;
 
   return (

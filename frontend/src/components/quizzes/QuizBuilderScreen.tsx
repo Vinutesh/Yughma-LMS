@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as quizzesApi from "@/lib/api/resources/quizzes";
@@ -29,7 +29,7 @@ export function QuizBuilderScreen({ quizId, kind }: { quizId: string; kind: Quiz
     enabled: canEdit,
   });
 
-  if (!canEdit) return <ComingSoon title={`${copy.singular} builder`} />;
+  if (!canEdit) return <AccessDenied title={`${copy.singular} builder`} />;
   if (isLoading) {
     return <p className="p-8 text-sm text-text-tertiary">Loading {copy.singular.toLowerCase()}...</p>;
   }

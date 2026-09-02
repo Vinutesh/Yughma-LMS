@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as assignmentsApi from "@/lib/api/resources/assignments";
@@ -40,7 +40,7 @@ export default function ManageAssignmentsPage() {
     },
   });
 
-  if (!canEdit) return <ComingSoon title="Assignments" />;
+  if (!canEdit) return <AccessDenied title="Assignments" />;
 
   return (
     <div className="mx-auto max-w-4xl p-8">

@@ -17,7 +17,7 @@ import {
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/Drawer";
 import { useSessionStore } from "@/state/sessionStore";
 import { usePermission } from "@/hooks/usePermission";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import * as usersApi from "@/lib/api/resources/users";
 import * as orgsApi from "@/lib/api/resources/organizations";
 import * as rolesApi from "@/lib/api/resources/roles";
@@ -69,7 +69,7 @@ export default function UsersPage() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["users", org?.id] });
 
-  if (!canView) return <ComingSoon title="Users" />;
+  if (!canView) return <AccessDenied title="Users" />;
 
   return (
     <div className="mx-auto max-w-4xl p-8">

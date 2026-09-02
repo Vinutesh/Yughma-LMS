@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as integrationsApi from "@/lib/api/resources/integrations";
@@ -18,7 +18,7 @@ import { ApiKeysTab } from "@/components/integrations/ApiKeysTab";
 
 export default function IntegrationsPage() {
   const canManage = usePermission("settings", "manage");
-  if (!canManage) return <ComingSoon title="Integrations" />;
+  if (!canManage) return <AccessDenied title="Integrations" />;
 
   return (
     <div className="mx-auto max-w-3xl p-8">

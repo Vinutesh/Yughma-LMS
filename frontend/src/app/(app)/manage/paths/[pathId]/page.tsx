@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as pathsApi from "@/lib/api/resources/paths";
@@ -30,7 +30,7 @@ export default function PathBuilderPage() {
     enabled: canEdit,
   });
 
-  if (!canEdit) return <ComingSoon title="Path builder" />;
+  if (!canEdit) return <AccessDenied title="Path builder" />;
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading path...</p>;
   if (!path) return <p className="p-8 text-sm text-text-tertiary">Path not found.</p>;
 

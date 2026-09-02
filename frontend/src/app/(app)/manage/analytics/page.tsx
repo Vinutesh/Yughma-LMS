@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as analyticsApi from "@/lib/api/resources/analytics";
@@ -16,7 +16,7 @@ export default function AnalyticsPage() {
   // Analytics is the sit-down destination for trends — Reports' same
   // permission tier, distinct from the daily Dashboard glance.
   const canView = usePermission("reports", "view");
-  if (!canView) return <ComingSoon title="Analytics" />;
+  if (!canView) return <AccessDenied title="Analytics" />;
 
   return (
     <div className="mx-auto max-w-3xl p-8">

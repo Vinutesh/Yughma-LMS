@@ -10,7 +10,7 @@ import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/compo
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/Drawer";
 import { useSessionStore } from "@/state/sessionStore";
-import { ComingSoon } from "@/components/patterns/ComingSoon";
+import { AccessDenied } from "@/components/patterns/AccessDenied";
 import * as platformApi from "@/lib/api/resources/platform";
 import type { Organization, Role } from "@/types/domain";
 
@@ -36,7 +36,7 @@ export default function CompaniesPage() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["clientOrgs"] });
 
-  if (!isPlatform) return <ComingSoon title="Companies" />;
+  if (!isPlatform) return <AccessDenied title="Companies" />;
 
   return (
     <div className="mx-auto max-w-4xl p-8">
