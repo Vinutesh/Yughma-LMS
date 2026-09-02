@@ -8,6 +8,15 @@
 // enforcement is the tRPC middleware in `src/trpc/context.ts`, which injects
 // the filter automatically so no resolver can omit it. See BACKEND_PLAN.md.
 
+// `driverAdapters` — Prisma talks to Neon over its own HTTP/WebSocket
+// driver (`@prisma/adapter-neon`, wired up in `src/db.ts`) instead of
+// Prisma's native query-engine binary. Not a preference: the native binary
+// repeatedly failed to deploy on Vercel (ENOENT copying a corrupted/missing
+// engine from Vercel's own build-image cache, reproduced across three
+// deploys, including with the build cache explicitly cleared — a live
+// Prisma/Vercel platform bug, not anything in this repo). The adapter path
+// needs no native binary at all, which is also the pattern Prisma's own
+// docs recommend for Neon + Vercel regardless of that bug.
 generator client {
   provider = "prisma-client-js"
 }
