@@ -1,5 +1,10 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+
+export const metadata: Metadata = {
+  title: "Reset password",
+};
 
 export default function ForgotPasswordPage() {
   return (

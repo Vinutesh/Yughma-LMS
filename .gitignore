@@ -14,3 +14,4 @@ build/
 next-env.d.ts
 coverage/
 backend/src/generated/
+tmp_logs/

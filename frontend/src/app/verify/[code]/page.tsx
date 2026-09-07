@@ -1,6 +1,7 @@
 "use client";
 
 import { use } from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CircleCheck, HelpCircle } from "lucide-react";
 import * as certificatesApi from "@/lib/api/resources/certificates";
@@ -23,7 +24,7 @@ export default function VerifyPage({ params }: { params: Promise<{ code: string 
     <div className="flex min-h-dvh flex-col bg-canvas">
       <header className="border-b border-border px-6 py-4 text-center">
         <div className="flex items-center justify-center gap-2 text-sm font-semibold text-text-primary">
-          <span className="size-5 rounded-[5px] bg-accent" aria-hidden />
+          <Image src="/mark-64.png" alt="" width={20} height={20} className="rounded-[5px]" />
           Yughma LMS
         </div>
       </header>

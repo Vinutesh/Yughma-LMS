@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Label } from "@/components/ui/Label";
@@ -59,7 +60,7 @@ export default function LoginPage() {
     <Card>
       <CardHeader className="items-center text-center">
         <div className="mb-1 flex items-center gap-2">
-          <span className="size-6 rounded-md bg-accent" aria-hidden />
+          <Image src="/mark-64.png" alt="" width={24} height={24} className="rounded-md" />
           <span className="text-sm font-semibold text-text-primary">Yughma LMS</span>
         </div>
         <h1 className="text-lg font-semibold text-text-primary">Log in</h1>

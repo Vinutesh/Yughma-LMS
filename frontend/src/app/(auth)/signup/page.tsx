@@ -1,5 +1,12 @@
 import Link from "next/link";
+import Image from "next/image";
+import type { Metadata } from "next";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
+
+export const metadata: Metadata = {
+  title: "Sign up",
+  description: "Get in touch to set up your organization on Yughma LMS.",
+};
 
 /**
  * There is no self-serve signup anymore — every company account is created
@@ -13,7 +20,7 @@ export default function SignupPage() {
     <Card>
       <CardHeader className="items-center text-center">
         <div className="mb-1 flex items-center gap-2">
-          <span className="size-6 rounded-md bg-accent" aria-hidden />
+          <Image src="/mark-64.png" alt="" width={24} height={24} className="rounded-md" />
           <span className="text-sm font-semibold text-text-primary">Yughma LMS</span>
         </div>
         <h1 className="text-lg font-semibold text-text-primary">Get in touch</h1>

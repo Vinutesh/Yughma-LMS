@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useSessionStore } from "@/state/sessionStore";
 import { ProfileMenu } from "@/components/shell/ProfileMenu";
 import { DevTrialMenu } from "@/components/shell/DevTrialMenu";
@@ -11,7 +12,7 @@ export function TopBar() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-surface px-6">
       <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-        <span className="size-5 rounded-[5px] bg-accent" aria-hidden />
+        <Image src="/mark-64.png" alt="" width={20} height={20} className="rounded-[5px]" />
         {orgName}
       </div>
 
