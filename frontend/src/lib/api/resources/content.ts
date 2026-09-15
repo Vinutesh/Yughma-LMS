@@ -106,6 +106,12 @@ export async function uploadAsset(
       folderId: folderId ?? null,
     });
     await putWithProgress(uploadUrl, file, onProgress);
+    // A .zip is a SCORM package — extract it now that the raw upload has
+    // landed in storage. Every other file kind is playable/downloadable as
+    // uploaded, so this step only exists for this one kind.
+    if (file.name.toLowerCase().endsWith(".zip")) {
+      await trpcClient.content.processScormPackage.mutate({ assetId });
+    }
     return { id: assetId };
   } catch (err) {
     throw toApiError(err);

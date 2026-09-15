@@ -141,6 +141,7 @@ model User {
   assetsUploaded     Asset[]              @relation("AssetUploader")
   coursesCreated     Course[]             @relation("CourseCreator")
   authSessions       AuthSession[]
+  scormLaunchTokens  ScormLaunchToken[]
 
   @@unique([orgId, email])
   @@index([orgId])
@@ -247,6 +248,7 @@ enum AssetKind {
   document
   image
   other
+  scorm
 }
 
 model AssetFolder {
@@ -275,9 +277,42 @@ model Asset {
   uploadedAt       DateTime     @default(now())
   /// Object storage key (R2/S3) — never the file itself.
   storageKey       String?
+  /// SCORM only — path, relative to the extracted package's own root, to the
+  /// manifest-declared launch file (e.g. "story.html" or
+  /// "scormcontent/index.html"). Set once processScormPackage finishes
+  /// extracting the uploaded zip; null until then. The raw zip itself lives
+  /// at `storageKey` as uploaded; extracted files live under their own
+  /// `{orgId}/scorm/{assetId}/...` prefix in the same bucket.
+  scormLaunchPath  String?
   lessons          Lesson[]
+  scormLaunchTokens ScormLaunchToken[]
 
   @@index([orgId])
+}
+
+/// A short-lived, narrowly-scoped credential the *SCORM package's own script*
+/// presents when it calls back into the app (to fetch the launch page, its
+/// sub-resources, and to report progress) — deliberately not the learner's
+/// real session token. The sandboxed iframe (`sandbox="allow-scripts"`, no
+/// `allow-same-origin`, see ScormPlayer.tsx) runs untrusted third-party JS;
+/// handing it a real session token would let a malicious package call any
+/// authenticated endpoint as the learner. This token can only ever do one
+/// thing: read/report progress for the one (user, lesson) pair it was
+/// issued for, and only until it expires.
+model ScormLaunchToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId  String
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId   String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+  @@index([lessonId])
 }
 
 // ---------------------------------------------------------------------------
@@ -368,6 +403,7 @@ model Lesson {
   url              String?
   estimatedMinutes Int?
   scormStatus      ScormPackageStatus?
+  scormLaunchTokens ScormLaunchToken[]
 
   @@index([courseId])
   @@index([moduleId])

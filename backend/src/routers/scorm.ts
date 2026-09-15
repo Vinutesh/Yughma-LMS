@@ -1,6 +1,9 @@
+import crypto from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, requirePermission } from "../trpc/trpc.js";
+import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
+
+const LAUNCH_TOKEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours — a generous single SCORM session
 
 /**
  * Mirrors `frontend/src/lib/api/resources/scorm.ts`. `XapiStatement` and
@@ -61,4 +64,50 @@ export const scormRouter = router({
         update: { endpointUrl, authKey: input.authKey, connected: false },
       });
     }),
+
+  /**
+   * Issues a `ScormLaunchToken` and returns the URL to embed in the
+   * player's iframe. `protectedProcedure`, not `requirePermission` — a
+   * plain Learner holds zero permissions (see the seed script) and must
+   * still be able to launch a SCORM lesson they're enrolled in, same
+   * reasoning as `content.getLessonAssetUrl`. Enrollment is re-checked here
+   * server-side regardless of what the frontend's own (non-authoritative)
+   * check already decided.
+   */
+  getLaunchUrl: protectedProcedure.input(z.object({ lessonId: z.string() })).mutation(async ({ ctx, input }) => {
+    const lesson = await ctx.rawDb.lesson.findUnique({ where: { id: input.lessonId } });
+    if (!lesson || lesson.contentType !== "scorm" || !lesson.assetId) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found." });
+    }
+
+    const enrollment = await ctx.rawDb.enrollment.findUnique({
+      where: { courseId_userId: { courseId: lesson.courseId, userId: ctx.session.userId } },
+    });
+    if (!enrollment || enrollment.status === "requested") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Not enrolled in this course." });
+    }
+
+    const asset = await ctx.rawDb.asset.findUnique({ where: { id: lesson.assetId } });
+    if (!asset || !asset.scormLaunchPath) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This package isn't ready yet." });
+    }
+
+    const token = crypto.randomBytes(24).toString("base64url");
+    await ctx.rawDb.scormLaunchToken.create({
+      data: {
+        token,
+        userId: ctx.session.userId,
+        lessonId: lesson.id,
+        assetId: asset.id,
+        expiresAt: new Date(Date.now() + LAUNCH_TOKEN_TTL_MS),
+      },
+    });
+
+    // No trailing slash — Next.js would 308-redirect "/token/" to "/token"
+    // anyway (stripping it) before the route handler ever runs, so this
+    // skips that extra hop. The handler's own injected <base> tag is what
+    // actually makes the package's relative asset paths resolve correctly,
+    // not this URL's shape.
+    return { url: `/api/scorm/${token}` };
+  }),
 });

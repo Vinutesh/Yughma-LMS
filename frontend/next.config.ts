@@ -31,7 +31,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        // Excludes /api/scorm — SCORM packages are served embedded in an
+        // iframe on this app's own lesson pages (see
+        // frontend/src/app/api/scorm/), which the blanket
+        // X-Frame-Options: DENY / frame-ancestors 'none' below would block
+        // outright, same-origin or not. That route sets its own,
+        // deliberately permissive headers instead (see its own file) — the
+        // sandboxed iframe attribute is the real isolation boundary for
+        // that content, not these headers, which exist to stop *this app*
+        // from being framed by someone else's site.
+        source: "/((?!api/scorm/).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },

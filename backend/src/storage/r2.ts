@@ -76,3 +76,31 @@ export async function getDownloadUrl(storageKey: string): Promise<string> {
 export async function deleteObject(storageKey: string): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: storageKey }));
 }
+
+/**
+ * Reads an object's bytes directly, server-side — unlike `getDownloadUrl`,
+ * this doesn't hand a URL to the browser; the server itself needs the raw
+ * content. Used only for SCORM package extraction (the uploaded zip has to
+ * be read in-process to unpack it) — everything else in this app
+ * deliberately keeps file bytes off the app server entirely.
+ */
+export async function getObjectBuffer(storageKey: string): Promise<Buffer> {
+  const res = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: storageKey }));
+  const body = res.Body;
+  if (!body) throw new Error(`Object not found: ${storageKey}`);
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of body as AsyncIterable<Uint8Array>) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Writes an object directly, server-side — the counterpart to
+ * `getObjectBuffer`. Used only to re-upload a SCORM package's extracted
+ * files after unpacking; every other write in this app goes browser-direct
+ * via `getUploadUrl` instead.
+ */
+export async function putObjectBuffer(storageKey: string, data: Buffer, contentType: string): Promise<void> {
+  await getClient().send(
+    new PutObjectCommand({ Bucket: getBucket(), Key: storageKey, Body: data, ContentType: contentType }),
+  );
+}

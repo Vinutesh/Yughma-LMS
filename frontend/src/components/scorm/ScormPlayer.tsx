@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import * as scormApi from "@/lib/api/resources/scorm";
 
 /**
  * Renders SCORM content inside a sandboxed iframe, on message-passing terms
@@ -10,33 +12,25 @@ import { useEffect, useRef, useState } from "react";
  * zip full of HTML/CSS/JS that executes in the browser, and must never be
  * trusted the way first-party app code is.
  *
- * `sandbox="allow-scripts"` only — deliberately without `allow-same-origin`.
- * For `srcDoc` content specifically, adding `allow-same-origin` doesn't grant
- * the package its own isolated origin; it grants it the *parent page's*
- * origin (a well-known sandbox footgun), which would hand uploaded content
- * exactly the DOM/cookie/session access this module exists to deny. Without
- * it, the iframe's origin is opaque ("null") — the package can run its own
- * JS but has no origin to attack from. Progress/completion comes back via
- * `postMessage` only, never a direct call into parent-frame JavaScript.
- *
- * A real implementation additionally serves `src` from an isolated content
- * domain (never the app's own origin) rather than `srcDoc` — at that point
- * `allow-same-origin` becomes safe to add back, because "the package's own
- * origin" is a real, different-from-the-app origin rather than a stand-in for
- * the parent's. This mock renders self-contained placeholder content via
- * `srcDoc` since there's no backend yet to host an extracted package, but the
- * isolation contract above is the part that must survive into production
- * unchanged.
+ * `sandbox="allow-scripts"` only — deliberately without `allow-same-origin`,
+ * even though `src` now points at this app's own `/api/scorm/...` route
+ * rather than a truly separate domain. That combination still forces an
+ * opaque ("null") origin regardless of what URL the iframe loads — the
+ * package can run its own JS but has no origin to attack from, can't read
+ * this app's cookies/localStorage/session, and can't reach into the parent
+ * DOM. The real progress-tracking API (`window.API`/`window.API_1484_11`)
+ * is injected directly into the package's *own* document server-side (see
+ * backend/src/scorm/shim.ts) specifically so the package's own SCORM calls
+ * never need to cross that boundary at all.
  */
-export function ScormPlayer({
-  title,
-  onProgress,
-}: {
-  title: string;
-  onProgress?: (percent: number) => void;
-}) {
+export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string; title: string; onComplete?: () => void }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [percent, setPercent] = useState(0);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["scormLaunchUrl", lessonId],
+    queryFn: () => scormApi.getScormLaunchUrl(lessonId),
+  });
 
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
@@ -44,11 +38,22 @@ export function ScormPlayer({
       if (e.data?.type !== "scorm:progress") return;
       const value = Math.max(0, Math.min(100, Number(e.data.percent) || 0));
       setPercent(value);
-      onProgress?.(value);
+      if (value >= 100) onComplete?.();
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [onProgress]);
+  }, [onComplete]);
+
+  if (isLoading) {
+    return <p className="p-6 text-sm text-text-tertiary">Loading package...</p>;
+  }
+  if (error || !data) {
+    return (
+      <p className="rounded-md bg-danger-bg p-3 text-sm font-medium text-danger">
+        Couldn&apos;t open this package. Try reopening the lesson.
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -57,43 +62,16 @@ export function ScormPlayer({
           ref={iframeRef}
           title={title}
           sandbox="allow-scripts"
-          srcDoc={MOCK_SCO_HTML}
-          className="h-96 w-full bg-white"
+          src={data.url}
+          className="h-[32rem] w-full bg-white"
         />
       </div>
       <div className="flex items-center gap-2">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-alt">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
+          <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${percent}%` }} />
         </div>
         <span className="w-10 text-right text-xs tabular-nums text-text-tertiary">{percent}%</span>
       </div>
     </div>
   );
 }
-
-/**
- * Stands in for a real extracted SCO — talks to the parent exclusively via
- * postMessage, exactly as a real package's JS runtime would be constrained
- * to. Inlined as a string (not a separate served file) since there's nowhere
- * real to host package output yet; a real implementation swaps this `srcDoc`
- * for `src="https://content.<isolated-domain>/<package>/index.html"`.
- */
-const MOCK_SCO_HTML = `<!doctype html>
-<html>
-<head><style>
-  body { font-family: system-ui, sans-serif; padding: 24px; color: #333; }
-  button { margin-top: 12px; padding: 8px 16px; cursor: pointer; }
-</style></head>
-<body>
-  <h3>Mock SCORM content</h3>
-  <p>A real package's own HTML/JS renders here, sandboxed.</p>
-  <button onclick="advance()">Mark next section complete</button>
-  <script>
-    let percent = 0;
-    function advance() {
-      percent = Math.min(100, percent + 25);
-      parent.postMessage({ type: "scorm:progress", percent }, "*");
-    }
-  </script>
-</body>
-</html>`;

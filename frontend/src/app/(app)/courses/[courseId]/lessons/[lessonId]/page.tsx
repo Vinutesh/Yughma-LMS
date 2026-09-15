@@ -154,7 +154,19 @@ export default function LessonViewerPage() {
               <p className="text-xs text-text-tertiary">Check back in a moment.</p>
             </Card>
           ) : (
-            <ScormPlayer title={lesson.title} />
+            <ScormPlayer
+              lessonId={lesson.id}
+              title={lesson.title}
+              onComplete={() => {
+                // The SCORM package's own completion already recorded
+                // server-side (backend/src/scorm/shim.ts's fetch to
+                // /api/scorm/[token]/progress) — this just refreshes what
+                // this page already shows, the same invalidation the manual
+                // "Mark complete" button below triggers.
+                qc.invalidateQueries({ queryKey: ["course", courseId] });
+                qc.invalidateQueries({ queryKey: ["myCourses"] });
+              }}
+            />
           )}
         </>
       )}

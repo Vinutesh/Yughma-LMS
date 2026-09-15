@@ -1,8 +1,17 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
-import { buildStorageKey, deleteObject, getDownloadUrl, getUploadUrl, isStorageConfigured } from "../storage/r2.js";
+import {
+  buildStorageKey,
+  deleteObject,
+  getDownloadUrl,
+  getObjectBuffer,
+  getUploadUrl,
+  isStorageConfigured,
+  putObjectBuffer,
+} from "../storage/r2.js";
 import { getStreamingUrl, isCdnConfigured } from "../storage/cdn.js";
+import { extractScormPackage, ScormExtractionError } from "../scorm/extract.js";
 
 /**
  * Prefers the Cloudflare Worker/CDN path (`storage-worker/` — Worker → R2
@@ -37,8 +46,9 @@ async function resolvePlaybackUrl(storageKey: string | null): Promise<string | u
  * breaking too — those don't need storage at all.
  */
 
-function kindFromFilename(filename: string): "video" | "document" | "image" | "other" {
+function kindFromFilename(filename: string): "video" | "document" | "image" | "other" | "scorm" {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "zip") return "scorm";
   if (["mp4", "mov", "webm", "avi", "mkv"].includes(ext)) return "video";
   if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return "image";
   if (["mp3", "wav", "m4a", "aac"].includes(ext)) return "other";
@@ -63,7 +73,7 @@ function kindFromFilename(filename: string): "video" | "document" | "image" | "o
  *    storage costs or exhaust a bucket quota. Capped per kind, generous
  *    enough for real course video without being unbounded.
  */
-const ALLOWED_CONTENT_TYPES: Record<"video" | "image" | "document" | "other", Set<string>> = {
+const ALLOWED_CONTENT_TYPES: Record<"video" | "image" | "document" | "other" | "scorm", Set<string>> = {
   video: new Set(["video/mp4", "video/quicktime", "video/webm", "video/x-msvideo", "video/x-matroska"]),
   image: new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]),
   other: new Set(["audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/aac"]),
@@ -78,13 +88,19 @@ const ALLOWED_CONTENT_TYPES: Record<"video" | "image" | "document" | "other", Se
     "text/plain",
     "text/csv",
   ]),
+  // Browsers/OSes report zip files under any of these three depending on
+  // platform — all three are accepted, but only ever for a .zip filename
+  // (kindFromFilename already gates that), so this never widens what a
+  // "document" upload can claim to be.
+  scorm: new Set(["application/zip", "application/x-zip-compressed", "application/octet-stream"]),
 };
 
-const MAX_UPLOAD_BYTES: Record<"video" | "image" | "document" | "other", number> = {
+const MAX_UPLOAD_BYTES: Record<"video" | "image" | "document" | "other" | "scorm", number> = {
   video: 5 * 1024 * 1024 * 1024, // 5 GB
   image: 25 * 1024 * 1024, // 25 MB
   other: 250 * 1024 * 1024, // 250 MB
   document: 100 * 1024 * 1024, // 100 MB
+  scorm: 500 * 1024 * 1024, // 500 MB — the zip itself; extraction has its own separate uncompressed cap
 };
 
 export const contentRouter = router({
@@ -210,6 +226,53 @@ export const contentRouter = router({
         ctx.db.asset.update({ where: { id: asset.id }, data: { storageKey } }),
       ]);
       return { assetId: asset.id, uploadUrl };
+    }),
+
+  /**
+   * Step 2 of a SCORM upload — called by the frontend once the raw zip PUT
+   * from `requestUpload` finishes. Downloads the zip back from R2 (the only
+   * place in this app that pulls file bytes onto the server itself — every
+   * other asset type deliberately never does), extracts it under the
+   * zip-slip/zip-bomb guards in `scorm/extract.ts`, and re-uploads each
+   * extracted file to its own prefix so the launch route (a Next.js Route
+   * Handler, not this tRPC router — it has to serve raw HTML/JS/CSS bytes,
+   * not JSON) can read them back per request.
+   */
+  processScormPackage: requirePermission("courses", "edit")
+    .input(z.object({ assetId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const asset = await ctx.db.asset.findUnique({ where: { id: input.assetId } });
+      if (!asset) throw new TRPCError({ code: "NOT_FOUND", message: "Asset not found." });
+      if (asset.kind !== "scorm" || !asset.storageKey) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This asset isn't a SCORM package." });
+      }
+      if (!isStorageConfigured()) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "File storage isn't configured yet." });
+      }
+
+      let extracted;
+      try {
+        const zipBuffer = await getObjectBuffer(asset.storageKey);
+        extracted = extractScormPackage(zipBuffer);
+      } catch (err) {
+        const message = err instanceof ScormExtractionError ? err.message : "Couldn't process that package.";
+        throw new TRPCError({ code: "BAD_REQUEST", message });
+      }
+
+      const prefix = `${ctx.session.orgId}/scorm/${asset.id}`;
+      await Promise.all(
+        extracted.files.map((f) => putObjectBuffer(`${prefix}/${f.relativePath}`, f.data, f.contentType)),
+      );
+
+      await Promise.all([
+        ctx.db.asset.update({ where: { id: asset.id }, data: { scormLaunchPath: extracted.launchPath } }),
+        ctx.db.lesson.updateMany({
+          where: { assetId: asset.id, contentType: "scorm" },
+          data: { scormStatus: "ready" },
+        }),
+      ]);
+
+      return { ok: true, launchPath: extracted.launchPath };
     }),
 
   update: requirePermission("courses", "edit")

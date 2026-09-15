@@ -340,6 +340,17 @@ export const coursesRouter = router({
       const mod = await ctx.db.courseModule.findFirst({ where: { id: input.moduleId, courseId: input.courseId } });
       if (!mod) throw new TRPCError({ code: "NOT_FOUND", message: "Module not found." });
 
+      // A scorm asset picked from the Content Library may already be a
+      // previously-extracted, reused package (the whole point of "upload
+      // once, reuse across courses") — only mark this lesson "processing"
+      // if it genuinely isn't ready yet, or a reused package would falsely
+      // show "still processing" forever despite already being playable.
+      let scormStatus: "processing" | "ready" | undefined;
+      if (input.contentType === "scorm") {
+        const asset = input.assetId ? await ctx.db.asset.findUnique({ where: { id: input.assetId } }) : null;
+        scormStatus = asset?.scormLaunchPath ? "ready" : "processing";
+      }
+
       const order = await ctx.db.lesson.count({ where: { moduleId: input.moduleId } });
       return ctx.db.lesson.create({
         data: {
@@ -352,6 +363,7 @@ export const coursesRouter = router({
           assetId: input.assetId,
           url: input.url,
           estimatedMinutes: input.estimatedMinutes,
+          scormStatus,
         },
       });
     }),
