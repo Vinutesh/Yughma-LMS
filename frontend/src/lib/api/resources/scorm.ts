@@ -47,7 +47,7 @@ export async function saveLrsConnection(input: { endpointUrl: string; authKey: s
  * re-checks enrollment server-side every time this is called, same as
  * video/file playback. Call this each time the player mounts; don't cache
  * the URL across lessons or reloads. */
-export async function getScormLaunchUrl(lessonId: string): Promise<{ url: string }> {
+export async function getScormLaunchUrl(lessonId: string): Promise<{ url: string; crossOrigin: boolean }> {
   try {
     return await trpcClient.scorm.getLaunchUrl.mutate({ lessonId });
   } catch (err) {

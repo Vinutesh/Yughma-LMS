@@ -5,37 +5,83 @@ import { contentTypeFor } from "yughma-backend/dist/scorm/extract.js";
 import { buildScormShimScript, buildStorageShimScript } from "yughma-backend/dist/scorm/shim.js";
 
 /**
- * Serves an extracted SCORM package's files — the launch page (dynamically,
- * with the progress-tracking shim injected and this learner's real current
- * state inlined) plus every other file the package references by relative
- * path (static passthrough from R2). One route handles both, distinguished
- * by comparing the resolved relative path against the manifest's own
- * declared launch file, not by whether a sub-path was present at all — see
- * this file's own history for why "empty path = launch" broke real-world
- * packages.
+ * Serves an extracted SCORM package's files — package content (static
+ * passthrough from R2, the launch file included) plus, on the isolated
+ * `SCORM_CONTENT_ORIGIN` deployment, a synthetic "wrapper" document that
+ * exists purely to host the SCORM API object real authoring-tool runtimes
+ * expect to find on an *ancestor* frame.
  *
- * Real SCORM packages (this was found against an actual Articulate
- * Storyline export, not a hypothetical) often compute their own asset
- * paths from `window.location.pathname` directly inside their bootstrap
- * script, not from the DOM's base-URL-aware resolution — so an injected
- * `<base>` tag, which only affects the browser's own HTML-attribute/CSS
- * resolution, does nothing for that case; `location.pathname` always
- * reports the real navigated URL regardless of `<base>`. The fix is for
- * the URL itself to end in the package's real filename (e.g.
- * ".../index_lms.html"), exactly as a plain static file server would
- * serve it — then *any* path-computation strategy, browser-native or a
- * script parsing location.pathname by hand, lands on the same, correct
- * sibling directory. `scorm.getLaunchUrl` hands out exactly that shape now
- * instead of a bare token URL.
+ * Real SCORM packages (confirmed against an actual Articulate Storyline
+ * export, not a hypothetical) bundle Rustici's SCORM Driver
+ * (`lms/scormdriver.js`), whose API-discovery walks `window.parent` /
+ * `window.top.opener` and never checks its own window — so an API object
+ * placed directly in the SCO's own document (the original design here) is
+ * never found. Making that walk succeed requires the SCO's immediate
+ * *parent* frame to (a) actually define the API and (b) be genuinely
+ * same-origin with the SCO, which needs `allow-same-origin` on the SCO's
+ * sandbox. Granting that on this app's own origin would let arbitrary
+ * uploaded package JS fully script the real app (read the learner's
+ * session token, cookies, everything) — so it's only ever safe to do this
+ * when the whole `/api/scorm/*` tree is served from a dedicated, isolated
+ * origin that holds nothing else (see `proxy.ts`), configured via
+ * `SCORM_CONTENT_ORIGIN`. On that origin, the frame tree is:
  *
- * Auth model: the token in the URL is the sole credential, minted once by
- * `scorm.getLaunchUrl` after a real enrollment check — not re-checked per
- * sub-resource request, since by the time a browser is requesting
- * "js/app.js" it already legitimately loaded the (enrollment-gated) launch
- * page that pointed it there. See ScormLaunchToken's own doc comment in
- * schema.prisma for why this token, and not the learner's real session, is
- * what untrusted package JS ever gets handed.
+ *   main app (the real, trusted origin)
+ *     └─ iframe, sandbox="allow-scripts allow-same-origin ...", src = the
+ *        wrapper (`.../__scorm_wrapper__`) — trusted, first-party HTML,
+ *        defines window.API/window.API_1484_11 via buildScormShimScript
+ *        and iframes the real package underneath it
+ *          └─ iframe, sandbox="allow-scripts allow-same-origin ...", src =
+ *             the actual untrusted package content. Same real origin as
+ *             the wrapper (both served from SCORM_CONTENT_ORIGIN), so its
+ *             window.parent walk succeeds and finds the wrapper's API.
+ *             The package could fully script the wrapper in return — but
+ *             the wrapper holds nothing but the single-purpose launch
+ *             token already handed to package content anyway, never the
+ *             learner's real session, so that's an even trade.
+ *
+ * When `SCORM_CONTENT_ORIGIN` isn't configured, none of this applies:
+ * `scorm.getLaunchUrl` hands out a direct link to the launch file on this
+ * app's own origin instead of the wrapper, the launch file's own document
+ * gets the API shim injected directly (the original, single-frame design),
+ * and the sandbox stays `allow-scripts` only. Real authoring-tool output
+ * will still show the loading spinner forever in that mode — a known,
+ * deliberate limitation until the isolated origin is set up, not a
+ * regression — but simpler/custom-authored SCOs that check their own
+ * window first still work.
+ *
+ * Auth model unchanged either way: the token in the URL is the sole
+ * credential, minted once by `scorm.getLaunchUrl` after a real enrollment
+ * check — not re-checked per sub-resource request, since by the time a
+ * browser is requesting "js/app.js" it already legitimately loaded the
+ * (enrollment-gated) launch page that pointed it there. See
+ * ScormLaunchToken's own doc comment in schema.prisma.
  */
+const WRAPPER_SEGMENT = "__scorm_wrapper__";
+
+// Sandboxed without allow-same-origin means every document served here has
+// an opaque origin, and browsers send `Origin: null` for opaque-origin
+// requests — which subjects *font* loads (unlike scripts/styles/images) to
+// real CORS enforcement, even same-site. Without this header, a package's
+// own webfont requests fail outright with net::ERR_FAILED rather than just
+// rendering unstyled — and a package (confirmed: Articulate Storyline's
+// mobile output) that gates removing its own loading spinner on those
+// fonts actually finishing loading then spins forever. `*` is safe here:
+// this endpoint serves no credentials and nothing here is per-viewer-secret
+// beyond the token already required to reach it at all.
+const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
+
+async function loadProgressContext(launchToken: { lessonId: string; userId: string }) {
+  const lesson = await rawPrisma.lesson.findUnique({ where: { id: launchToken.lessonId } });
+  const enrollment = lesson
+    ? await rawPrisma.enrollment.findUnique({
+        where: { courseId_userId: { courseId: lesson.courseId, userId: launchToken.userId } },
+      })
+    : null;
+  const alreadyDone = !!enrollment && lesson ? enrollment.completedLessonIds.includes(lesson.id) : false;
+  return alreadyDone;
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string; path?: string[] }> }) {
   const { token, path } = await params;
 
@@ -47,6 +93,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   const asset = await rawPrisma.asset.findUnique({ where: { id: launchToken.assetId } });
   if (!asset || !asset.scormLaunchPath) {
     return new NextResponse("Not found.", { status: 404 });
+  }
+
+  const isWrapperRequest = path?.length === 1 && path[0] === WRAPPER_SEGMENT;
+  if (isWrapperRequest) {
+    const alreadyDone = await loadProgressContext(launchToken);
+    const shim = buildScormShimScript({
+      token,
+      progressUrl: `/api/scorm/${token}/progress`,
+      initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw: null, suspendData: "" },
+    });
+    const html = `<!doctype html>
+<html>
+<head>${shim}</head>
+<body style="margin:0;padding:0;">
+<iframe src="/api/scorm/${token}/${asset.scormLaunchPath}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" style="border:0;width:100%;height:100vh;display:block;"></iframe>
+</body>
+</html>`;
+    return new NextResponse(html, {
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...CORS_HEADERS },
+    });
   }
 
   // No sub-path at all still falls back to the launch file, so a bare
@@ -63,18 +129,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   } catch {
     return new NextResponse("Not found.", { status: 404 });
   }
-
-  // Sandboxed without allow-same-origin means every document served here has
-  // an opaque origin, and browsers send `Origin: null` for opaque-origin
-  // requests — which subjects *font* loads (unlike scripts/styles/images) to
-  // real CORS enforcement, even same-site. Without this header, a package's
-  // own webfont requests fail outright with net::ERR_FAILED rather than just
-  // rendering unstyled — and a package (confirmed: Articulate Storyline's
-  // mobile output) that gates removing its own loading spinner on those
-  // fonts actually finishing loading then spins forever. `*` is safe here:
-  // this endpoint serves no credentials and nothing here is
-  // per-viewer-secret beyond the token already required to reach it at all.
-  const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
 
   if (!isLaunch) {
     const contentType = contentTypeFor(relativePath);
@@ -97,19 +151,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     });
   }
 
-  // Launch page only: inline this learner's real current progress so the
-  // shim's first GetValue calls (which the SCORM spec requires to be
-  // synchronous) read real data, not empty defaults — see shim.ts's own
-  // doc comment on why this can't just be an async fetch from the shim
-  // itself.
-  const lesson = await rawPrisma.lesson.findUnique({ where: { id: launchToken.lessonId } });
-  const enrollment = lesson
-    ? await rawPrisma.enrollment.findUnique({
-        where: { courseId_userId: { courseId: lesson.courseId, userId: launchToken.userId } },
-      })
-    : null;
-  const alreadyDone = !!enrollment && lesson ? enrollment.completedLessonIds.includes(lesson.id) : false;
-
+  // Fallback (no SCORM_CONTENT_ORIGIN configured): inject the API shim
+  // directly into the launch page itself, same-origin with this app, no
+  // wrapper. Only works for SCOs that check their own window for the API —
+  // see this file's own top comment.
+  const alreadyDone = await loadProgressContext(launchToken);
   const shim = buildScormShimScript({
     token,
     progressUrl: `/api/scorm/${token}/progress`,

@@ -113,6 +113,27 @@ export const scormRouter = router({
     // location.pathname by hand — lands on the same correct directory,
     // exactly like a plain static file server would have served this same
     // package. See the route handler's own doc comment for the full story.
-    return { url: `/api/scorm/${token}/${asset.scormLaunchPath}` };
+    // SCORM_CONTENT_ORIGIN, when set, points at a dedicated origin (e.g.
+    // https://scorm.yughma.com) that serves nothing but /api/scorm/* — see
+    // proxy.ts. Real authoring-tool runtimes (confirmed: Storyline's bundled
+    // Rustici SCORM Driver) locate the LMS API object by walking
+    // window.parent/window.top.opener; they never check their own window.
+    // Even with allow-same-origin on the SCO's sandbox, that walk only
+    // succeeds if an *ancestor* frame is both same-origin with the SCO and
+    // actually defines the API — the real app page one level up never is
+    // (different real origin), so the URL handed out here points at a
+    // small trusted "wrapper" document instead of the launch file directly.
+    // The wrapper (see the route handler's own doc comment) is same-origin
+    // with the SCO, defines the API, and iframes the real launch file
+    // beneath itself. Without SCORM_CONTENT_ORIGIN configured, none of this
+    // is safe (that origin would be this app's own), so the URL points
+    // straight at the launch file with no wrapper and no allow-same-origin —
+    // real authoring-tool output will still hang in that mode, a known,
+    // deliberate limitation until the isolated origin is set up.
+    const scormOrigin = process.env.SCORM_CONTENT_ORIGIN;
+    const url = scormOrigin
+      ? `${scormOrigin}/api/scorm/${token}/__scorm_wrapper__`
+      : `/api/scorm/${token}/${asset.scormLaunchPath}`;
+    return { url, crossOrigin: !!scormOrigin };
   }),
 });

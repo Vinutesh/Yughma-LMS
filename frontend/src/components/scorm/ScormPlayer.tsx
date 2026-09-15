@@ -12,16 +12,20 @@ import * as scormApi from "@/lib/api/resources/scorm";
  * zip full of HTML/CSS/JS that executes in the browser, and must never be
  * trusted the way first-party app code is.
  *
- * `sandbox="allow-scripts"` only — deliberately without `allow-same-origin`,
- * even though `src` now points at this app's own `/api/scorm/...` route
- * rather than a truly separate domain. That combination still forces an
- * opaque ("null") origin regardless of what URL the iframe loads — the
- * package can run its own JS but has no origin to attack from, can't read
- * this app's cookies/localStorage/session, and can't reach into the parent
- * DOM. The real progress-tracking API (`window.API`/`window.API_1484_11`)
- * is injected directly into the package's *own* document server-side (see
- * backend/src/scorm/shim.ts) specifically so the package's own SCORM calls
- * never need to cross that boundary at all.
+ * Sandbox is `allow-scripts` only when `data.crossOrigin` is false — the
+ * package is served from this app's own origin, so adding
+ * `allow-same-origin` there would let it fully script this real page
+ * (read the learner's session token, cookies, everything). Real
+ * authoring-tool output (Storyline, Captivate, iSpring — all bundle
+ * Rustici's SCORM Driver) can't actually run in that mode: its API
+ * discovery only ever walks `window.parent`/`window.top.opener`, never its
+ * own window, so it needs real cross-frame property access to find
+ * `window.API`. `data.crossOrigin` is true exactly when `scorm.getLaunchUrl`
+ * handed back a URL on the dedicated, isolated SCORM_CONTENT_ORIGIN (see
+ * that mutation's own doc comment) — there, and only there, is it safe to
+ * add `allow-same-origin`: the package's own origin is that isolated host,
+ * never this app's, so even fully scripting its own frame tree reaches
+ * nothing of the real app's session/cookies/DOM.
  */
 export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string; title: string; onComplete?: () => void }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -61,7 +65,7 @@ export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string;
         <iframe
           ref={iframeRef}
           title={title}
-          sandbox="allow-scripts"
+          sandbox={data.crossOrigin ? "allow-scripts allow-same-origin allow-forms allow-popups" : "allow-scripts"}
           src={data.url}
           className="h-[32rem] w-full bg-white"
         />

@@ -29,6 +29,14 @@ const nextConfig: NextConfig = {
   // nonce-based policy is a follow-up, not a regression from today's "no CSP
   // at all".
   async headers() {
+    // When SCORM content is served from a dedicated, isolated origin (see
+    // proxy.ts and scorm.ts's getLaunchUrl), this app embeds it in an
+    // iframe pointing at that other origin. With no frame-src directive,
+    // CSP falls back to default-src 'self' and silently blocks that
+    // iframe from ever loading — same failure mode as media-src below, for
+    // frames instead of <video>/<audio>.
+    const scormOrigin = process.env.SCORM_CONTENT_ORIGIN;
+    const frameSrc = scormOrigin ? `frame-src 'self' ${scormOrigin}` : "frame-src 'self'";
     return [
       {
         // Excludes /api/scorm — SCORM packages are served embedded in an
@@ -64,6 +72,7 @@ const nextConfig: NextConfig = {
               "media-src 'self' https:",
               "font-src 'self' data:",
               "connect-src 'self' https:",
+              frameSrc,
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
