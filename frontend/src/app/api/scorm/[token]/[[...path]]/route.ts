@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rawPrisma } from "yughma-backend/dist/db.js";
 import { getObjectBuffer } from "yughma-backend/dist/storage/r2.js";
 import { contentTypeFor } from "yughma-backend/dist/scorm/extract.js";
-import { buildScormShimScript } from "yughma-backend/dist/scorm/shim.js";
+import { buildScormShimScript, buildStorageShimScript } from "yughma-backend/dist/scorm/shim.js";
 
 /**
  * Serves an extracted SCORM package's files — the launch page (dynamically,
@@ -64,9 +64,36 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     return new NextResponse("Not found.", { status: 404 });
   }
 
+  // Sandboxed without allow-same-origin means every document served here has
+  // an opaque origin, and browsers send `Origin: null` for opaque-origin
+  // requests — which subjects *font* loads (unlike scripts/styles/images) to
+  // real CORS enforcement, even same-site. Without this header, a package's
+  // own webfont requests fail outright with net::ERR_FAILED rather than just
+  // rendering unstyled — and a package (confirmed: Articulate Storyline's
+  // mobile output) that gates removing its own loading spinner on those
+  // fonts actually finishing loading then spins forever. `*` is safe here:
+  // this endpoint serves no credentials and nothing here is
+  // per-viewer-secret beyond the token already required to reach it at all.
+  const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
+
   if (!isLaunch) {
+    const contentType = contentTypeFor(relativePath);
+    // Storyline packages ship more than one HTML document (e.g. its own
+    // `analytics-frame.html`, loaded as a nested iframe) — each gets its own
+    // opaque origin under this sandbox, so each needs the same
+    // localStorage/sessionStorage shim as the launch page, or it hits the
+    // same uncaught SecurityError independently. See buildStorageShimScript's
+    // own doc comment for the full story.
+    if (contentType === "text/html" && /<head[^>]*>/i.test(data.toString("utf-8"))) {
+      const html = data
+        .toString("utf-8")
+        .replace(/<head[^>]*>/i, (match) => `${match}\n${buildStorageShimScript()}`);
+      return new NextResponse(html, {
+        headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=3600", ...CORS_HEADERS },
+      });
+    }
     return new NextResponse(new Uint8Array(data), {
-      headers: { "Content-Type": contentTypeFor(relativePath), "Cache-Control": "private, max-age=3600" },
+      headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=3600", ...CORS_HEADERS },
     });
   }
 
@@ -101,6 +128,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   }
 
   return new NextResponse(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...CORS_HEADERS },
   });
 }

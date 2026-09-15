@@ -30,6 +30,66 @@ export interface ScormInitialState {
   suspendData: string;
 }
 
+/**
+ * Sandboxed with allow-scripts but deliberately no allow-same-origin (see
+ * this file's own top comment), which gives every document served under
+ * `/api/scorm/*` — the launch page AND every other HTML file the package
+ * serves, e.g. Articulate Storyline's own `analytics-frame.html` — an
+ * opaque origin. Per spec, `window.localStorage`/`sessionStorage` throw a
+ * SecurityError for an opaque origin rather than just returning an empty
+ * store. Real packages (confirmed: Storyline's own runtime, in more than
+ * one of its own HTML files) call these directly, unguarded, during boot;
+ * the throw is uncaught and kills that document's init sequence right
+ * there — on the launch page specifically, that's the exact "stuck at 0%,
+ * spinner forever" symptom, since the code that would hide the spinner
+ * never runs. Shadowing both with an in-memory Storage-alike (an *own*
+ * property on window, so the native opaque-origin getter on
+ * Window.prototype is never reached) fixes it without ever granting the
+ * frame real storage or real-origin access. Injected into every HTML
+ * response the route handler serves, not just the launch page — see the
+ * route handler's own doc comment.
+ */
+export function buildStorageShimScript(): string {
+  return `<script>
+(function () {
+  function fakeStorage() {
+    var data = {};
+    return {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function (k, v) { data[k] = String(v); },
+      removeItem: function (k) { delete data[k]; },
+      clear: function () { data = {}; },
+      key: function (i) { return Object.keys(data)[i] ?? null; },
+      get length() { return Object.keys(data).length; },
+    };
+  }
+  ["localStorage", "sessionStorage"].forEach(function (name) {
+    try {
+      window[name]; // eslint-disable-line no-unused-expressions
+    } catch (e) {
+      try {
+        Object.defineProperty(window, name, { value: fakeStorage(), configurable: true });
+      } catch (e2) {}
+    }
+  });
+
+  // Sandboxed without allow-modals, so window.confirm/alert/prompt are
+  // blocked by the browser itself — but a blocked confirm() silently
+  // returns false, not an exception, and package boot code that branches
+  // on it (e.g. a "best viewed in landscape — continue anyway?" check,
+  // confirmed present in a real Storyline mobile export via its own
+  // console warning about the blocked call) reads that false as "user
+  // said no" and never runs whatever shows the actual content, leaving
+  // the loading spinner in place forever with no error anywhere. Shadow
+  // all three so package code sees the same answer a learner clicking
+  // "OK"/dismissing every prompt would have produced.
+  window.confirm = function () { return true; };
+  window.alert = function () {};
+  window.prompt = function () { return ""; };
+})();
+</script>`;
+}
+
 export function buildScormShimScript(opts: {
   token: string;
   progressUrl: string;
@@ -44,7 +104,8 @@ export function buildScormShimScript(opts: {
     "<\\/script",
   );
 
-  return `<script>
+  return `${buildStorageShimScript()}
+<script>
 (function () {
   var CONFIG = ${payload};
   var cmi = {
