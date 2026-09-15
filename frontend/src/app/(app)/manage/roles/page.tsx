@@ -77,7 +77,7 @@ export default function RolesPage() {
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
         System roles
       </h2>
-      <div className="mb-6 grid grid-cols-4 gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {systemRoles.map((r) => (
           <Card
             key={r.id}

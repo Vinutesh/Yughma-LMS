@@ -192,7 +192,7 @@ function Builder({ quiz, kind }: { quiz: quizzesApi.QuizDetail; kind: QuizKind }
           <Input id="q-name" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
 
-        <div className="grid grid-cols-3 items-end gap-3">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="q-time">Time limit (min)</Label>
             <Input
@@ -241,7 +241,7 @@ function Builder({ quiz, kind }: { quiz: quizzesApi.QuizDetail; kind: QuizKind }
 
         {isAssessment && (
           <>
-            <div className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+            <div className="grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="q-from">Available from</Label>
                 <Input

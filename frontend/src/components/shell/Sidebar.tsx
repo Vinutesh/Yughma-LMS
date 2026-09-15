@@ -10,7 +10,12 @@ import { useSessionStore } from "@/state/sessionStore";
 import { useHasManageAccess } from "@/hooks/usePermission";
 import { LEARNING_NAV, MANAGE_NAV } from "@/config/nav";
 
-export function Sidebar() {
+/** The actual nav content, shared between the always-visible desktop
+ * sidebar and the mobile overlay drawer — one source of truth for which
+ * items show, so the two never drift apart. `onNavigate` lets the mobile
+ * drawer close itself the moment a link is tapped; the desktop rail has
+ * nothing to close, so it simply doesn't pass one. */
+export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const setMode = useUiStore((s) => s.setMode);
@@ -18,18 +23,16 @@ export function Sidebar() {
   const permissions = useSessionStore((s) => s.session?.permissions ?? []);
   const isPlatform = useSessionStore((s) => s.session?.org.isPlatform ?? false);
 
-  /** The URL decides which nav shows — landing on a /manage link directly
-   * must not leave the sidebar displaying Learning. The persisted uiStore mode
-   * records the preference for where to land on login, not what to render. */
   const mode = pathname.startsWith("/manage") ? "manage" : "learning";
 
   function switchMode(next: "learning" | "manage") {
     setMode(next);
     router.push(next === "learning" ? "/home" : "/manage/dashboard");
+    onNavigate?.();
   }
 
   return (
-    <aside className="flex min-h-0 w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface-alt p-3">
+    <>
       {hasManageAccess && (
         <div className="mb-2 flex rounded-lg bg-border/60 p-0.5">
           <ModeTab active={mode === "learning"} onClick={() => switchMode("learning")}>
@@ -57,18 +60,33 @@ export function Sidebar() {
                 </div>
               )}
               {visibleItems.map((item) => (
-                <NavLink key={item.href} href={item.href} label={item.label} active={isActive(pathname, item.href)} />
+                <NavLink
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  active={isActive(pathname, item.href)}
+                  onNavigate={onNavigate}
+                />
               ))}
             </div>
           );
         })}
       </nav>
+    </>
+  );
+}
+
+/** The desktop rail — always visible from md upward, hidden below that so
+ * it never competes with page content for width on a phone screen. See
+ * `MobileSidebar` for the small-screen equivalent. */
+export function Sidebar() {
+  return (
+    <aside className="hidden min-h-0 w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface-alt p-3 md:flex">
+      <SidebarNav />
     </aside>
   );
 }
 
-/** A nav item stays highlighted on its own sub-routes, so the course builder
- * at /manage/courses/<id> still reads as "Courses". */
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -96,10 +114,21 @@ function ModeTab({
   );
 }
 
-function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+function NavLink({
+  href,
+  label,
+  active,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className={cn(
         "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
         active
@@ -107,7 +136,7 @@ function NavLink({ href, label, active }: { href: string; label: string; active:
           : "text-text-secondary hover:bg-border/40 hover:text-text-primary",
       )}
     >
-      <LayoutGrid className="size-3.5 opacity-60" aria-hidden />
+      <LayoutGrid className="size-3.5 shrink-0 opacity-60" aria-hidden />
       {label}
     </Link>
   );

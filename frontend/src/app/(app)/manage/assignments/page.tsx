@@ -213,7 +213,7 @@ function CreateAssignmentDialog({
               className="rounded-md border border-border bg-surface p-2 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="a-due">Due date</Label>
               <Input

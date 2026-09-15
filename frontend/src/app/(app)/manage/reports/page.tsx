@@ -39,7 +39,7 @@ export default function ReportsPage() {
   return (
     <div className="mx-auto max-w-3xl p-8">
       <h1 className="mb-5 text-xl font-semibold text-text-primary">Reports</h1>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {(Object.keys(REPORT_LABELS) as ReportKind[]).map((kind) => (
           <Card
             key={kind}

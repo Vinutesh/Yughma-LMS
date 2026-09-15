@@ -78,7 +78,8 @@ export default function CalendarPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading calendar...</p>
       ) : (
-        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border">
+        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="grid min-w-175 grid-cols-7 gap-px overflow-hidden bg-border">
           {WEEKDAYS.map((d) => (
             <div key={d} className="bg-surface-alt px-2 py-1.5 text-center text-[11px] font-semibold text-text-tertiary">
               {d}
@@ -128,6 +129,7 @@ export default function CalendarPage() {
               </div>
             );
           })}
+        </div>
         </div>
       )}
 
@@ -268,7 +270,7 @@ function AddEventDialog({
             <Label htmlFor="ev-title">Title</Label>
             <Input id="ev-title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ev-when">Date/time</Label>
               <Input id="ev-when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />

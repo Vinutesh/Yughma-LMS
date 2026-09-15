@@ -66,7 +66,7 @@ function OrgOverviewTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card className="p-4">
           <p className="text-2xl font-semibold tabular-nums text-text-primary">{data.activeUsers}</p>
           <p className="text-xs text-text-tertiary">Active users</p>
@@ -83,7 +83,7 @@ function OrgOverviewTab() {
         </Card>
       </div>
 
-      <Card className="grid grid-cols-2 gap-6 p-5">
+      <Card className="grid grid-cols-1 gap-6 p-5 sm:grid-cols-2">
         <TrendLine points={data.activeUsersTrend} label="Active users over time" />
         <TrendLine points={data.completionsTrend} label="Completions over time" />
       </Card>

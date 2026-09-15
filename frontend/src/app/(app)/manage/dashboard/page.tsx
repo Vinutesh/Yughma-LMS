@@ -73,7 +73,7 @@ function OrgAdminSection() {
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {stats.map((s) => (
           <Card key={s.label} className="p-4">
             <p className="text-2xl font-semibold tabular-nums text-text-primary">{s.value}</p>

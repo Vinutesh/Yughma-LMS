@@ -71,7 +71,7 @@ export function OnboardingWizard({ initialStep = 1 }: { initialStep?: number }) 
             <Label htmlFor="ob-name">Organization name</Label>
             <Input id="ob-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ob-industry">Industry</Label>
               <select
@@ -124,7 +124,7 @@ export function OnboardingWizard({ initialStep = 1 }: { initialStep?: number }) 
               Pick what fits best — helps us tailor what you see first.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {PERSONAS.map((p) => (
               <button
                 key={p}
