@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Maximize, Minimize } from "lucide-react";
 import * as scormApi from "@/lib/api/resources/scorm";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Renders SCORM content inside a sandboxed iframe, on message-passing terms
@@ -29,7 +31,9 @@ import * as scormApi from "@/lib/api/resources/scorm";
  */
 export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string; title: string; onComplete?: () => void }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [percent, setPercent] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["scormLaunchUrl", lessonId],
@@ -48,6 +52,22 @@ export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string;
     return () => window.removeEventListener("message", handleMessage);
   }, [onComplete]);
 
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    }
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      containerRef.current?.requestFullscreen();
+    }
+  }
+
   if (isLoading) {
     return <p className="p-6 text-sm text-text-tertiary">Loading package...</p>;
   }
@@ -60,15 +80,26 @@ export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string;
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="overflow-hidden rounded-lg border border-border">
+    <div ref={containerRef} className={"flex flex-col gap-2" + (isFullscreen ? " h-dvh bg-canvas p-3" : "")}>
+      <div className="relative overflow-hidden rounded-lg border border-border">
         <iframe
           ref={iframeRef}
           title={title}
           sandbox={data.crossOrigin ? "allow-scripts allow-same-origin allow-forms allow-popups" : "allow-scripts"}
+          allow="fullscreen"
           src={data.url}
-          className="h-[32rem] w-full bg-white"
+          className={isFullscreen ? "h-full w-full bg-white" : "h-[32rem] w-full bg-white"}
         />
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon"
+          onClick={toggleFullscreen}
+          className="absolute right-2 top-2 bg-surface/90 backdrop-blur"
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        >
+          {isFullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
+        </Button>
       </div>
       <div className="flex items-center gap-2">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-alt">
