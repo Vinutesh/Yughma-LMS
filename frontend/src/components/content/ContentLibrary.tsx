@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Film, Image as ImageIcon, Music, Check } from "lucide-react";
+import { FileText, Film, Image as ImageIcon, Music, Package, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -17,7 +17,8 @@ const KIND_ICON: Record<AssetKind, typeof FileText> = {
   video: Film,
   document: FileText,
   image: ImageIcon,
-  audio: Music,
+  other: Music,
+  scorm: Package,
 };
 
 export function formatSize(bytes: number) {

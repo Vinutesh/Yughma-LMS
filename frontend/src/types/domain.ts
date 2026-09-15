@@ -151,7 +151,7 @@ export interface AuditLogEntry {
   detail?: Record<string, string>;
 }
 
-export type AssetKind = "video" | "document" | "image" | "audio";
+export type AssetKind = "video" | "document" | "image" | "other" | "scorm";
 
 export interface AssetFolder {
   id: string;
