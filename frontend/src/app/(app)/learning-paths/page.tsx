@@ -67,7 +67,8 @@ function MyPaths({ onOpen }: { onOpen: (id: string) => void }) {
       {paths.map((path) => (
         <Card
           key={path.id}
-          className="cursor-pointer p-4 hover:border-border-strong"
+          interactive
+          className="cursor-pointer p-4"
           onClick={() => onOpen(path.id)}
         >
           <div className="flex items-center justify-between gap-3">
@@ -80,7 +81,7 @@ function MyPaths({ onOpen }: { onOpen: (id: string) => void }) {
           </div>
           <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-alt">
             <div
-              className="h-full rounded-full bg-accent"
+              className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out"
               style={{
                 width: `${path.courseCount === 0 ? 0 : (path.completedCount / path.courseCount) * 100}%`,
               }}

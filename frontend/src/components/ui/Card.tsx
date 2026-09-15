@@ -1,11 +1,20 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Opts into the hover/press lift used for clickable cards (course tiles,
+   * content-library items, ...) — off by default so static panel usage
+   * (the vast majority of Card call sites) isn't affected. */
+  interactive?: boolean;
+}
+
+export function Card({ className, interactive, ...props }: CardProps) {
   return (
     <div
       className={cn(
         "rounded-lg border border-border bg-surface shadow-(--shadow-token-sm)",
+        interactive &&
+          "transition-[transform,box-shadow,border-color] duration-150 ease-out hover:-translate-y-0.5 hover:scale-[1.01] hover:border-border-strong hover:shadow-(--shadow-token-md) active:translate-y-0 active:scale-100 active:duration-80",
         className,
       )}
       {...props}

@@ -211,6 +211,7 @@ export function ContentLibrary({ mode, onUseSelected }: ContentLibraryProps) {
             return (
               <Card
                 key={a.id}
+                interactive
                 role="button"
                 tabIndex={0}
                 aria-pressed={mode === "picker" ? isSelected : undefined}
@@ -222,7 +223,7 @@ export function ContentLibrary({ mode, onUseSelected }: ContentLibraryProps) {
                   }
                 }}
                 className={
-                  "relative flex cursor-pointer flex-col gap-2 p-3 hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" +
+                  "relative flex cursor-pointer flex-col gap-2 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" +
                   (isSelected ? " border-accent ring-1 ring-accent" : "")
                 }
               >

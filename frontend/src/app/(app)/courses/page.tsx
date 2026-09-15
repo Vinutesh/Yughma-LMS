@@ -45,7 +45,7 @@ function MyCourses() {
   return (
     <div className="flex flex-col gap-2.5">
       {courses.map((c) => (
-        <Card key={c.id} className="p-4">
+        <Card key={c.id} interactive className="p-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <Link
@@ -64,7 +64,7 @@ function MyCourses() {
               <div className="flex w-40 shrink-0 items-center gap-2">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
                   <div
-                    className="h-full rounded-full bg-accent"
+                    className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out"
                     style={{ width: `${c.progressPercent}%` }}
                   />
                 </div>

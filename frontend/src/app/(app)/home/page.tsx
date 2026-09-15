@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/Card";
+import { StaggerContainer, StaggerItem } from "@/components/motion/Stagger";
 import { useSessionStore } from "@/state/sessionStore";
 
 const CONTINUE_LEARNING = [
@@ -34,26 +35,30 @@ export default function HomePage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xs font-semibold text-text-tertiary">Continue Learning</h2>
-        <div className="flex flex-wrap gap-4">
+        <StaggerContainer className="flex flex-wrap gap-4">
           {CONTINUE_LEARNING.map((c) => (
-            <Card key={c.title} className="flex w-55 flex-col gap-2 p-3">
-              <div className="size-10 rounded-md bg-surface-alt" aria-hidden />
-              <span className="text-xs text-text-secondary">{c.title}</span>
-            </Card>
+            <StaggerItem key={c.title}>
+              <Card interactive className="flex w-55 flex-col gap-2 p-3">
+                <div className="size-10 rounded-md bg-surface-alt" aria-hidden />
+                <span className="text-xs text-text-secondary">{c.title}</span>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xs font-semibold text-text-tertiary">This Week</h2>
-        <div className="flex flex-wrap gap-4">
+        <StaggerContainer className="flex flex-wrap gap-4">
           {STATS.map((s) => (
-            <Card key={s.label} className="w-51 p-3.5">
-              <p className="text-base font-semibold text-text-primary">{s.value}</p>
-              <p className="text-[11px] text-text-tertiary">{s.label}</p>
-            </Card>
+            <StaggerItem key={s.label}>
+              <Card className="w-51 p-3.5">
+                <p className="text-base font-semibold text-text-primary">{s.value}</p>
+                <p className="text-[11px] text-text-tertiary">{s.label}</p>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
       </section>
 
       <section className="flex flex-col gap-1">

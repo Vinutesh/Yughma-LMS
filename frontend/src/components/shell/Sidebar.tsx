@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/state/uiStore";
@@ -105,11 +106,18 @@ function ModeTab({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex-1 rounded-[7px] px-3 py-1.5 text-xs font-semibold transition-colors",
-        active ? "bg-text-primary text-canvas" : "text-text-tertiary hover:text-text-secondary",
+        "relative flex-1 rounded-[7px] px-3 py-1.5 text-xs font-semibold transition-colors",
+        active ? "text-canvas" : "text-text-tertiary hover:text-text-secondary",
       )}
     >
-      {children}
+      {active && (
+        <motion.span
+          layoutId="sidebar-mode-pill"
+          className="absolute inset-0 rounded-[7px] bg-text-primary"
+          transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
+        />
+      )}
+      <span className="relative">{children}</span>
     </button>
   );
 }
@@ -130,14 +138,19 @@ function NavLink({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-        active
-          ? "bg-accent-soft font-semibold text-accent-soft-fg"
-          : "text-text-secondary hover:bg-border/40 hover:text-text-primary",
+        "relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+        active ? "font-semibold text-accent-soft-fg" : "text-text-secondary hover:bg-border/40 hover:text-text-primary",
       )}
     >
-      <LayoutGrid className="size-3.5 shrink-0 opacity-60" aria-hidden />
-      {label}
+      {active && (
+        <motion.span
+          layoutId="sidebar-active-pill"
+          className="absolute inset-0 rounded-md bg-accent-soft"
+          transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
+        />
+      )}
+      <LayoutGrid className="relative size-3.5 shrink-0 opacity-60" aria-hidden />
+      <span className="relative">{label}</span>
     </Link>
   );
 }

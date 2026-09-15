@@ -223,6 +223,54 @@ body {
   outline-offset: 2px;
 }
 
+/*
+  Overlay/dialog/drawer entrance motion — plain keyframes rather than a
+  Tailwind animate plugin (none is installed; the classes this file used to
+  reference, `animate-in`/`fade-in`, were never actually doing anything).
+  Exit animation is deliberately not attempted: Radix unmounts on close by
+  default, and adding forceMount + exit timing is real added complexity for
+  a v1 pass — these three durations/easings match the motion spec (dialogs
+  200ms, drawers 220ms) and respect prefers-reduced-motion via the existing
+  global rule below.
+*/
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.motion-overlay {
+  animation: overlay-in 200ms var(--ease-standard) forwards;
+}
+.motion-dialog {
+  animation: dialog-in 200ms var(--ease-standard) forwards;
+}
+.motion-drawer {
+  animation: drawer-in 220ms var(--ease-standard) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

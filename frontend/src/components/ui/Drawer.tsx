@@ -15,10 +15,10 @@ export function DrawerContent({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/30" />
+      <DialogPrimitive.Overlay className="motion-overlay fixed inset-0 z-50 bg-black/20" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed right-0 top-0 z-50 h-dvh w-full max-w-sm overflow-y-auto border-l border-border bg-surface p-5 shadow-(--shadow-token-lg)",
+          "motion-drawer fixed right-0 top-0 z-50 h-dvh w-full max-w-sm overflow-y-auto border-l border-border bg-surface p-5 shadow-(--shadow-token-lg)",
           className,
         )}
         {...props}
