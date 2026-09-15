@@ -23,17 +23,16 @@ async function generateVerificationCode(): Promise<string> {
 }
 
 /**
- * Single issuance path for every trigger — course completion, assessment
- * pass, and manual admin issue all land here, so the code format and
- * duplicate guard can't drift between them. Exported for `courses.ts` and
- * `quizzes.ts` to call directly on completion — `db` is the caller's own
- * client, never re-derived here, since this always runs inside another
- * resolver's request.
+ * Single issuance path for every trigger — course completion and manual
+ * admin issue both land here, so the code format and duplicate guard can't
+ * drift between them. Exported for `courses.ts` to call directly on
+ * completion — `db` is the caller's own client, never re-derived here,
+ * since this always runs inside another resolver's request.
  *
  * Typed to accept `RawDb` (a superset of `ScopedDb`'s shape) since callers
- * fall into two different cases: `courses.ts`/`quizzes.ts` pass `ctx.db`
- * (the certificate lands in the *caller's own* org — correct there, since
- * the caller IS the learner earning it) but `certificates.ts`'s own
+ * fall into two different cases: `courses.ts` passes `ctx.db` (the
+ * certificate lands in the *caller's own* org — correct there, since the
+ * caller IS the learner earning it) but `certificates.ts`'s own
  * `issueManually` must pass `ctx.rawDb` and an explicit target `orgId` —
  * the recipient is a different org than the platform-admin caller, and a
  * *scoped* client would silently force `orgId` back to the caller's own org
@@ -45,7 +44,7 @@ export async function issueCertificate(
     orgId: string;
     userId: string;
     templateId: string;
-    sourceKind: "course" | "assessment" | "path" | "manual";
+    sourceKind: "course" | "path" | "manual";
     sourceId?: string;
     sourceTitle: string;
   },

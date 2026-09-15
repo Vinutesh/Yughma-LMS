@@ -1,5 +1,4 @@
 import type {
-  Academy,
   Assignment,
   Asset,
   AssetFolder,
@@ -11,12 +10,10 @@ import type {
   CourseModule,
   Enrollment,
   LearningPath,
+  LearningPlan,
   Lesson,
   PathEnrollment,
   Post,
-  Quiz,
-  QuizAttempt,
-  QuizQuestion,
   Skill,
   Submission,
   Thread,
@@ -285,140 +282,6 @@ export const MOCK_SUBMISSIONS: Submission[] = [
   },
 ];
 
-export const MOCK_QUIZZES: Quiz[] = [
-  {
-    id: "quiz_discovery",
-    orgId: ORG,
-    courseId: "course_sales",
-    title: "Week 2 Knowledge Check",
-    kind: "quiz",
-    timeLimitMinutes: 10,
-    randomizeOrder: false,
-    retakesAllowed: 2,
-    createdByUserId: "user_priya",
-    createdAt: daysAgo(9),
-  },
-  {
-    id: "asmt_sales_cert",
-    orgId: ORG,
-    courseId: "course_sales",
-    title: "Sales Certification Exam",
-    kind: "assessment",
-    randomizeOrder: false,
-    retakesAllowed: 0,
-    passingScorePercent: 80,
-    proctoringRequired: false,
-    certificateTemplateId: "cert_tpl_sales",
-    createdByUserId: "user_priya",
-    createdAt: daysAgo(7),
-  },
-];
-
-export const MOCK_QUIZ_QUESTIONS: QuizQuestion[] = [
-  {
-    id: "q_first_step",
-    quizId: "quiz_discovery",
-    order: 0,
-    type: "mcq",
-    prompt: "What's the first step of a discovery call?",
-    options: [
-      { id: "o_rapport", text: "Build rapport" },
-      { id: "o_pitch", text: "Pitch the product" },
-      { id: "o_budget", text: "Ask for budget" },
-    ],
-    correctOptionId: "o_rapport",
-    points: 5,
-  },
-  {
-    id: "q_objections",
-    quizId: "quiz_discovery",
-    order: 1,
-    type: "truefalse",
-    prompt: "Objections mean the deal is dead.",
-    options: [
-      { id: "o_true", text: "True" },
-      { id: "o_false", text: "False" },
-    ],
-    correctOptionId: "o_false",
-    points: 5,
-  },
-];
-
-/** Five questions on the certification exam, so an 80% pass mark is reachable
- * in whole steps (4 of 5 = 80%) — useful for exercising both outcomes. */
-export const MOCK_ASSESSMENT_QUESTIONS: QuizQuestion[] = [
-  {
-    id: "aq_discovery_goal",
-    quizId: "asmt_sales_cert",
-    order: 0,
-    type: "mcq",
-    prompt: "What should you leave a discovery call with?",
-    options: [
-      { id: "ao_problem", text: "A written problem statement in the buyer's words" },
-      { id: "ao_demo", text: "A scheduled demo, whatever else happens" },
-      { id: "ao_quote", text: "A signed quote" },
-    ],
-    correctOptionId: "ao_problem",
-    points: 2,
-  },
-  {
-    id: "aq_features",
-    quizId: "asmt_sales_cert",
-    order: 1,
-    type: "truefalse",
-    prompt: "You should describe the product's features before asking about the current process.",
-    options: [
-      { id: "ao_f_true", text: "True" },
-      { id: "ao_f_false", text: "False" },
-    ],
-    correctOptionId: "ao_f_false",
-    points: 2,
-  },
-  {
-    id: "aq_objection",
-    quizId: "asmt_sales_cert",
-    order: 2,
-    type: "mcq",
-    prompt: "A buyer raises a pricing objection. What's the first move?",
-    options: [
-      { id: "ao_discount", text: "Offer a discount" },
-      { id: "ao_understand", text: "Understand what they're comparing the price against" },
-      { id: "ao_escalate", text: "Escalate to your manager" },
-    ],
-    correctOptionId: "ao_understand",
-    points: 2,
-  },
-  {
-    id: "aq_qualify",
-    quizId: "asmt_sales_cert",
-    order: 3,
-    type: "truefalse",
-    prompt: "Disqualifying a bad-fit deal early is a good outcome.",
-    options: [
-      { id: "ao_q_true", text: "True" },
-      { id: "ao_q_false", text: "False" },
-    ],
-    correctOptionId: "ao_q_true",
-    points: 2,
-  },
-  {
-    id: "aq_notes",
-    quizId: "asmt_sales_cert",
-    order: 4,
-    type: "mcq",
-    prompt: "Where should a decision from a customer call live?",
-    options: [
-      { id: "ao_memory", text: "In your memory until the next call" },
-      { id: "ao_written", text: "Written down where the team can find it" },
-      { id: "ao_inbox", text: "In your sent-mail folder" },
-    ],
-    correctOptionId: "ao_written",
-    points: 2,
-  },
-];
-
-export const MOCK_QUIZ_ATTEMPTS: QuizAttempt[] = [];
-
 export const MOCK_LEARNING_PATHS: LearningPath[] = [
   {
     id: "path_sales_ramp",
@@ -531,14 +394,13 @@ export const MOCK_POSTS: Post[] = [
   },
 ];
 
-export const MOCK_ACADEMIES: Academy[] = [
+export const MOCK_LEARNING_PLANS: LearningPlan[] = [
   {
-    id: "academy_sales",
+    id: "plan_sales",
     orgId: ORG,
-    title: "Sales Academy",
+    title: "Sales Learning Plan",
     description: "Everything for the sales team.",
     status: "published",
-    courseIds: ["course_sales"],
     pathIds: ["path_sales_ramp"],
     createdByUserId: "user_priya",
     createdAt: daysAgo(9),

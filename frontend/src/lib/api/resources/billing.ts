@@ -32,7 +32,7 @@ export const PLANS: Plan[] = [
     name: "Starter",
     seats: "Up to 50 users",
     seatLimit: 50,
-    features: ["Core LMS", "Courses, lessons & quizzes", "Email support"],
+    features: ["Core LMS", "Courses & lessons", "Email support"],
   },
   {
     id: "growth",

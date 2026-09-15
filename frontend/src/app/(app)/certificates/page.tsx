@@ -59,7 +59,7 @@ export default function MyCertificatesPage() {
           <Award className="size-6 text-text-tertiary" />
           <p className="text-sm font-semibold text-text-primary">No certificates yet</p>
           <p className="text-xs text-text-tertiary">
-            Finish a course or pass an assessment that awards one and it&apos;ll appear here.
+            Finish a course or learning path that awards one and it&apos;ll appear here.
           </p>
         </Card>
       ) : (

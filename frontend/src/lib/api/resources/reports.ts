@@ -59,22 +59,6 @@ export async function getComplianceReport(filters: ReportFilters): Promise<Compl
   }
 }
 
-export interface QuizScoreRow {
-  userName: string;
-  quizTitle: string;
-  courseTitle: string;
-  scorePercent: number;
-  submittedAt: string;
-}
-
-export async function getQuizScoresReport(filters: ReportFilters): Promise<QuizScoreRow[]> {
-  try {
-    return await trpcClient.reports.quizScores.query(filters);
-  } catch (err) {
-    throw toApiError(err);
-  }
-}
-
 export function toCsv(headers: string[], rows: (string | number)[][]): string {
   const escape = (v: string | number) => {
     let s = String(v);

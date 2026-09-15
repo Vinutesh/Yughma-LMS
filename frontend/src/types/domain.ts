@@ -33,8 +33,8 @@ export interface Organization {
   id: string;
   name: string;
   /** True for exactly one org — Yughma Tech itself, the only account that
-   * authors courses/videos/quizzes and grants client companies' people
-   * access to them. Gates the platform-admin UI; the real enforcement is
+   * authors courses/videos and grants client companies' people access to
+   * them. Gates the platform-admin UI; the real enforcement is
    * server-side (`requirePlatformAdmin` in the backend), this is a UI
    * convenience only. */
   isPlatform: boolean;
@@ -284,71 +284,6 @@ export interface Submission {
   flagged: boolean;
 }
 
-export type QuizQuestionType = "mcq" | "truefalse";
-
-export interface QuizOption {
-  id: string;
-  text: string;
-}
-
-export interface QuizQuestion {
-  id: string;
-  quizId: string;
-  order: number;
-  type: QuizQuestionType;
-  prompt: string;
-  options: QuizOption[];
-  correctOptionId: string;
-  points: number;
-}
-
-/**
- * An assessment is the high-stakes variant of a quiz, not a parallel system —
- * same question editor and attempt flow, plus a required passing score, a
- * single attempt, an optional availability window, and certificate issuance on
- * a pass. See LMS/docs/modules/13-assessments/00-open-questions.md.
- */
-export type QuizKind = "quiz" | "assessment";
-
-export interface Quiz {
-  id: string;
-  orgId: string;
-  courseId: string;
-  title: string;
-  kind: QuizKind;
-  timeLimitMinutes?: number;
-  randomizeOrder: boolean;
-  /** 0 means one attempt only, no retakes. Always 0 for assessments. */
-  retakesAllowed: number;
-  createdByUserId: string;
-  createdAt: string;
-
-  // ---- assessment-only ----
-  /** Percentage of total points needed to pass. */
-  passingScorePercent?: number;
-  availableFrom?: string;
-  availableTo?: string;
-  /**
-   * Stored but inert — there is no webcam/AI proctoring behind this in v1.
-   * A deliberate placeholder for a Phase 4+ vendor integration; do not mistake
-   * it for a working feature.
-   */
-  proctoringRequired?: boolean;
-  /** Issued automatically to anyone who passes. */
-  certificateTemplateId?: string;
-}
-
-export interface QuizAttempt {
-  id: string;
-  quizId: string;
-  userId: string;
-  startedAt: string;
-  submittedAt?: string;
-  /** questionId -> chosen optionId */
-  answers: Record<string, string>;
-  score?: number;
-}
-
 /** A flat tag in this pass — no hierarchy, no proficiency levels. Proficiency
  * is expressed as a count of completed courses that build the skill. */
 export interface Skill {
@@ -418,7 +353,7 @@ export interface PathEnrollment {
 }
 
 /** A manual calendar entry — live sessions, office hours, anything that isn't
- * already a due date derived from Assignments/Assessments. */
+ * already a due date derived from Assignments. */
 export interface CalendarEvent {
   id: string;
   orgId: string;
@@ -443,16 +378,17 @@ export interface CareerPath {
   publishedAt?: string;
 }
 
-/** A curated, named shelf of existing courses/paths — surfaces as a Catalog
- * filter, not a nav item (see the module's open questions). */
-export interface Academy {
+/** A named, published bundle of LearningPaths — surfaces as a Catalog
+ * filter, not a nav item (see the module's open questions). This was
+ * `Academy` before it was narrowed to grouping paths only (no direct
+ * courses) and renamed to match what it's actually for. */
+export interface LearningPlan {
   id: string;
   orgId: string;
   title: string;
   description: string;
   status: PathStatus;
   heroImageAssetId?: string;
-  courseIds: string[];
   pathIds: string[];
   createdByUserId: string;
   createdAt: string;

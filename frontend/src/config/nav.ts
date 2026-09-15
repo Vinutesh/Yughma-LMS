@@ -19,13 +19,12 @@ export interface NavSection {
 
 /**
  * Learning-mode nav. The original Shell wireframes listed 5 flat items;
- * Assignments and Quizzes were added when those modules shipped, then
- * Assessments and My Skills with Phase 2 — a learner otherwise has no way to
- * reach their own work. That grew to 9 flat items, past the point a single
- * list stays scannable, so this is grouped the same way Manage mode already
- * is: "Learn" (content), "My Work" (things due from you), "My Progress"
- * (what you've earned). Home stays ungrouped — it's the landing page, not a
- * category of its own.
+ * Assignments was added when that module shipped, then My Skills with
+ * Phase 2 — a learner otherwise has no way to reach their own work. That
+ * grew past the point a single list stays scannable, so this is grouped the
+ * same way Manage mode already is: "Learn" (content), "My Work" (things due
+ * from you), "My Progress" (what you've earned). Home stays ungrouped —
+ * it's the landing page, not a category of its own.
  */
 export const LEARNING_NAV: NavSection[] = [
   { items: [{ label: "Home", href: "/home" }] },
@@ -41,11 +40,7 @@ export const LEARNING_NAV: NavSection[] = [
   },
   {
     heading: "My Work",
-    items: [
-      { label: "Assignments", href: "/assignments" },
-      { label: "Quizzes", href: "/quizzes" },
-      { label: "Assessments", href: "/assessments" },
-    ],
+    items: [{ label: "Assignments", href: "/assignments" }],
   },
   {
     heading: "My Progress",
@@ -69,7 +64,7 @@ export const MANAGE_NAV: NavSection[] = [
       { label: "Content Library", href: "/manage/content", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Paths", href: "/manage/paths", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Career Paths", href: "/manage/career-paths", requires: { resource: RESOURCES.courses, action: "edit" } },
-      { label: "Academies", href: "/manage/academies", requires: { resource: RESOURCES.courses, action: "edit" } },
+      { label: "Learning Plans", href: "/manage/learning-plans", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Skills", href: "/manage/skills", requires: { resource: RESOURCES.courses, action: "edit" } },
     ],
   },
@@ -78,8 +73,6 @@ export const MANAGE_NAV: NavSection[] = [
     items: [
       { label: "Course Access", href: "/manage/enrollments", requires: { resource: RESOURCES.courses, action: "edit" }, platformOnly: true },
       { label: "Assignments", href: "/manage/assignments", requires: { resource: RESOURCES.assignments, action: "edit" } },
-      { label: "Quizzes", href: "/manage/quizzes", requires: { resource: RESOURCES.courses, action: "edit" } },
-      { label: "Assessments", href: "/manage/assessments", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Certificates", href: "/manage/certificates", requires: { resource: RESOURCES.courses, action: "edit" } },
     ],
   },

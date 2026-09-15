@@ -6,14 +6,15 @@ import type { Context } from "../trpc/context.js";
 
 /**
  * Same-org (not cross-org) access-control checks — a learner who never
- * enrolled in a course/path/academy, and holds no `courses:edit` permission,
- * must not be able to read its content just by knowing or guessing its id.
+ * enrolled in a course/path/learning plan, and holds no `courses:edit`
+ * permission, must not be able to read its content just by knowing or
+ * guessing its id.
  *
  * This is the class of bug the cross-org test suites don't cover: everything
  * here happens inside ONE org, so `tenantScope.ts`'s org filter was never
  * going to catch it — these resolvers used to trust a client-supplied
  * `learnerContext` boolean (courses.get/assignments.get) or had no
- * status/permission check at all (paths/careerPaths/academies.get,
+ * status/permission check at all (paths/careerPaths/learningPlans.get,
  * communities createThread/replyToThread).
  */
 describe("same-org access control — draft/invite-only content and course-thread membership", () => {
@@ -28,7 +29,7 @@ describe("same-org access control — draft/invite-only content and course-threa
   let assignmentId: string;
   let draftPathId: string;
   let draftCareerPathId: string;
-  let draftAcademyId: string;
+  let draftPlanId: string;
   let courseThreadId: string;
 
   function ctxFor(userId: string, roleIds: string[]): Context {
@@ -103,10 +104,10 @@ describe("same-org access control — draft/invite-only content and course-threa
     });
     draftCareerPathId = draftCareerPath.id;
 
-    const draftAcademy = await rawPrisma.academy.create({
-      data: { orgId, title: "Draft academy", status: "draft", createdByUserId: instructorId },
+    const draftPlan = await rawPrisma.learningPlan.create({
+      data: { orgId, title: "Draft learning plan", status: "draft", createdByUserId: instructorId },
     });
-    draftAcademyId = draftAcademy.id;
+    draftPlanId = draftPlan.id;
 
     const thread = await rawPrisma.thread.create({
       data: { orgId, scope: "course", courseId: inviteCourseId, title: "Course-only thread", createdByUserId: instructorId },
@@ -167,9 +168,9 @@ describe("same-org access control — draft/invite-only content and course-threa
     await expect(caller.careerPaths.get({ pathId: draftCareerPathId })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("a non-editor caller cannot read a draft academy by id", async () => {
+  it("a non-editor caller cannot read a draft learning plan by id", async () => {
     const caller = appRouter.createCaller(ctxFor(outsiderId, []));
-    await expect(caller.academies.get({ academyId: draftAcademyId })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(caller.learningPlans.get({ planId: draftPlanId })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("a non-enrolled caller cannot start a course-scoped thread against a course they can't see", async () => {

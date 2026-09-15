@@ -6,12 +6,12 @@ import type { Context } from "../trpc/context.js";
 
 /**
  * Same class of check as `crossOrgJoinTable.test.ts`, applied to the
- * courses/content/assignments/quizzes/certificates routers added in this
- * pass. `Lesson`, `CourseModule`, `Enrollment`, `Submission`, `QuizQuestion`,
- * and `QuizAttempt` all carry no direct `orgId` (see tenantScope.ts) — every
- * resolver touching one of these by an id from the request must resolve its
- * tenant-scoped parent first. This proves that holds for org A never being
- * able to reach into org B's rows through any of them.
+ * courses/content/assignments/certificates routers added in this pass.
+ * `Lesson`, `CourseModule`, `Enrollment`, and `Submission` all carry no
+ * direct `orgId` (see tenantScope.ts) — every resolver touching one of
+ * these by an id from the request must resolve its tenant-scoped parent
+ * first. This proves that holds for org A never being able to reach into
+ * org B's rows through any of them.
  */
 describe("cross-org protection — learning routers", () => {
   let orgAId: string;
@@ -25,8 +25,6 @@ describe("cross-org protection — learning routers", () => {
   let enrollmentB: { id: string };
   let assignmentB: { id: string };
   let submissionB: { id: string };
-  let quizB: { id: string };
-  let questionB: { id: string };
   let assetB: { id: string };
   let certificateB: { id: string };
 
@@ -76,21 +74,6 @@ describe("cross-org protection — learning routers", () => {
     });
     submissionB = await rawPrisma.submission.create({
       data: { assignmentId: assignmentB.id, userId: userB.id, text: "answer" },
-    });
-
-    quizB = await rawPrisma.quiz.create({
-      data: { orgId: orgBId, courseId: courseB.id, title: "Quiz B", createdByUserId: userB.id },
-    });
-    questionB = await rawPrisma.quizQuestion.create({
-      data: {
-        quizId: quizB.id,
-        order: 0,
-        type: "mcq",
-        prompt: "?",
-        options: [{ id: "o1", text: "A" }, { id: "o2", text: "B" }],
-        correctOptionId: "o1",
-        points: 1,
-      },
     });
 
     assetB = await rawPrisma.asset.create({
@@ -163,29 +146,6 @@ describe("cross-org protection — learning routers", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     const untouched = await rawPrisma.submission.findUnique({ where: { id: submissionB.id } });
     expect(untouched?.flagged).toBe(false);
-  });
-
-  it("org A cannot add a question to org B's quiz", async () => {
-    await expect(
-      callerA().quizzes.addQuestion({
-        quizId: quizB.id,
-        type: "mcq",
-        prompt: "Injected?",
-        optionTexts: ["Yes", "No"],
-        correctIndex: 0,
-        points: 1,
-      }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    const count = await rawPrisma.quizQuestion.count({ where: { quizId: quizB.id } });
-    expect(count).toBe(1);
-  });
-
-  it("org A cannot delete org B's quiz question", async () => {
-    await expect(
-      callerA().quizzes.deleteQuestion({ quizId: quizB.id, questionId: questionB.id }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    const stillExists = await rawPrisma.quizQuestion.findUnique({ where: { id: questionB.id } });
-    expect(stillExists).not.toBeNull();
   });
 
   it("org A cannot revoke org B's certificate", async () => {

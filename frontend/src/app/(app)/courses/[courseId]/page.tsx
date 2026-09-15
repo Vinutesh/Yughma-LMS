@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/Badge";
 import { useSessionStore } from "@/state/sessionStore";
 import { usePermission } from "@/hooks/usePermission";
 import * as coursesApi from "@/lib/api/resources/courses";
-import * as quizzesApi from "@/lib/api/resources/quizzes";
 
 /**
  * There is no more self-enrollment — a learner only ever reaches this page
@@ -31,22 +30,6 @@ export default function CourseDetailPage() {
     queryFn: () => coursesApi.getCourse(courseId, true),
     enabled: !!session,
   });
-
-  // A quiz/assessment linked to this course doesn't otherwise surface
-  // anywhere in the learner's course flow — without this, finishing a
-  // course's lessons leads nowhere, and the learner has to separately
-  // stumble onto the standalone Quizzes/Assessments nav item to find it.
-  const { data: myQuizzes = [] } = useQuery({
-    queryKey: ["myQuizzes", "quiz", session?.user.id],
-    queryFn: () => quizzesApi.listMyQuizzes("quiz"),
-    enabled: !!session,
-  });
-  const { data: myAssessments = [] } = useQuery({
-    queryKey: ["myQuizzes", "assessment", session?.user.id],
-    queryFn: () => quizzesApi.listMyQuizzes("assessment"),
-    enabled: !!session,
-  });
-  const linkedAssessment = [...myQuizzes, ...myAssessments].find((q) => q.courseId === courseId);
 
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading course...</p>;
   if (!course) return <p className="p-8 text-sm text-text-tertiary">Course not found.</p>;
@@ -167,10 +150,6 @@ export default function CourseDetailPage() {
           (nextLesson ? (
             <Button onClick={() => router.push(`/courses/${courseId}/lessons/${nextLesson.id}`)}>
               Continue →
-            </Button>
-          ) : linkedAssessment ? (
-            <Button onClick={() => router.push(`/quizzes/${linkedAssessment.id}`)}>
-              Course complete — take the {linkedAssessment.kind === "assessment" ? "assessment" : "quiz"} →
             </Button>
           ) : (
             <Badge variant="success">Course complete</Badge>

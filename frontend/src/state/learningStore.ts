@@ -3,7 +3,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
-  Academy,
   ApiKeyRecord,
   Assignment,
   Asset,
@@ -19,13 +18,11 @@ import type {
   Integration,
   Invoice,
   LearningPath,
+  LearningPlan,
   Lesson,
   LrsConnection,
   PathEnrollment,
   Post,
-  Quiz,
-  QuizAttempt,
-  QuizQuestion,
   SeatRequest,
   Skill,
   Submission,
@@ -33,8 +30,7 @@ import type {
   Webhook,
 } from "@/types/domain";
 import {
-  MOCK_ACADEMIES,
-  MOCK_ASSESSMENT_QUESTIONS,
+  MOCK_LEARNING_PLANS,
   MOCK_ASSETS,
   MOCK_ASSIGNMENTS,
   MOCK_CALENDAR_EVENTS,
@@ -48,9 +44,6 @@ import {
   MOCK_LESSONS,
   MOCK_MODULES,
   MOCK_PATH_ENROLLMENTS,
-  MOCK_QUIZZES,
-  MOCK_QUIZ_ATTEMPTS,
-  MOCK_QUIZ_QUESTIONS,
   MOCK_SKILLS,
   MOCK_SUBMISSIONS,
   MOCK_THREADS,
@@ -100,17 +93,6 @@ interface LearningState {
   addSubmission: (submission: Submission) => void;
   updateSubmission: (id: string, patch: Partial<Submission>) => void;
 
-  quizzes: Quiz[];
-  quizQuestions: QuizQuestion[];
-  quizAttempts: QuizAttempt[];
-  addQuiz: (quiz: Quiz) => void;
-  updateQuiz: (id: string, patch: Partial<Quiz>) => void;
-  deleteQuiz: (id: string) => void;
-  addQuizQuestion: (question: QuizQuestion) => void;
-  deleteQuizQuestion: (id: string) => void;
-  addQuizAttempt: (attempt: QuizAttempt) => void;
-  updateQuizAttempt: (id: string, patch: Partial<QuizAttempt>) => void;
-
   skills: Skill[];
   addSkill: (skill: Skill) => void;
   updateSkill: (id: string, patch: Partial<Skill>) => void;
@@ -139,10 +121,10 @@ interface LearningState {
   updateCareerPath: (id: string, patch: Partial<CareerPath>) => void;
   deleteCareerPath: (id: string) => void;
 
-  academies: Academy[];
-  addAcademy: (academy: Academy) => void;
-  updateAcademy: (id: string, patch: Partial<Academy>) => void;
-  deleteAcademy: (id: string) => void;
+  learningPlans: LearningPlan[];
+  addLearningPlan: (plan: LearningPlan) => void;
+  updateLearningPlan: (id: string, patch: Partial<LearningPlan>) => void;
+  deleteLearningPlan: (id: string) => void;
 
   lrsConnections: LrsConnection[];
   saveLrsConnection: (connection: LrsConnection) => void;
@@ -185,9 +167,6 @@ const SEED = {
   enrollments: MOCK_ENROLLMENTS,
   assignments: MOCK_ASSIGNMENTS,
   submissions: MOCK_SUBMISSIONS,
-  quizzes: MOCK_QUIZZES,
-  quizQuestions: [...MOCK_QUIZ_QUESTIONS, ...MOCK_ASSESSMENT_QUESTIONS],
-  quizAttempts: MOCK_QUIZ_ATTEMPTS,
   skills: MOCK_SKILLS,
   certificateTemplates: MOCK_CERTIFICATE_TEMPLATES,
   certificates: MOCK_CERTIFICATES,
@@ -195,7 +174,7 @@ const SEED = {
   pathEnrollments: MOCK_PATH_ENROLLMENTS,
   calendarEvents: MOCK_CALENDAR_EVENTS,
   careerPaths: MOCK_CAREER_PATHS,
-  academies: MOCK_ACADEMIES,
+  learningPlans: MOCK_LEARNING_PLANS,
   lrsConnections: [] as LrsConnection[],
   integrations: [] as Integration[],
   webhooks: [] as Webhook[],
@@ -275,25 +254,6 @@ export const useLearningStore = create<LearningState>()(
           submissions: s.submissions.map((sub) => (sub.id === id ? { ...sub, ...patch } : sub)),
         })),
 
-      addQuiz: (quiz) => set((s) => ({ quizzes: [quiz, ...s.quizzes] })),
-      updateQuiz: (id, patch) =>
-        set((s) => ({ quizzes: s.quizzes.map((q) => (q.id === id ? { ...q, ...patch } : q)) })),
-      deleteQuiz: (id) =>
-        set((s) => ({
-          quizzes: s.quizzes.filter((q) => q.id !== id),
-          quizQuestions: s.quizQuestions.filter((q) => q.quizId !== id),
-          quizAttempts: s.quizAttempts.filter((a) => a.quizId !== id),
-        })),
-      addQuizQuestion: (question) =>
-        set((s) => ({ quizQuestions: [...s.quizQuestions, question] })),
-      deleteQuizQuestion: (id) =>
-        set((s) => ({ quizQuestions: s.quizQuestions.filter((q) => q.id !== id) })),
-      addQuizAttempt: (attempt) => set((s) => ({ quizAttempts: [...s.quizAttempts, attempt] })),
-      updateQuizAttempt: (id, patch) =>
-        set((s) => ({
-          quizAttempts: s.quizAttempts.map((a) => (a.id === id ? { ...a, ...patch } : a)),
-        })),
-
       addSkill: (skill) => set((s) => ({ skills: [...s.skills, skill] })),
       updateSkill: (id, patch) =>
         set((s) => ({ skills: s.skills.map((sk) => (sk.id === id ? { ...sk, ...patch } : sk)) })),
@@ -338,10 +298,10 @@ export const useLearningStore = create<LearningState>()(
       deleteCareerPath: (id) =>
         set((s) => ({ careerPaths: s.careerPaths.filter((p) => p.id !== id) })),
 
-      addAcademy: (academy) => set((s) => ({ academies: [academy, ...s.academies] })),
-      updateAcademy: (id, patch) =>
-        set((s) => ({ academies: s.academies.map((a) => (a.id === id ? { ...a, ...patch } : a)) })),
-      deleteAcademy: (id) => set((s) => ({ academies: s.academies.filter((a) => a.id !== id) })),
+      addLearningPlan: (plan) => set((s) => ({ learningPlans: [plan, ...s.learningPlans] })),
+      updateLearningPlan: (id, patch) =>
+        set((s) => ({ learningPlans: s.learningPlans.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+      deleteLearningPlan: (id) => set((s) => ({ learningPlans: s.learningPlans.filter((p) => p.id !== id) })),
 
       saveLrsConnection: (connection) =>
         set((s) => ({

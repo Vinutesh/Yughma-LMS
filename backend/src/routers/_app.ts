@@ -7,7 +7,6 @@ import { coursesRouter } from "./courses.js";
 import { contentRouter } from "./content.js";
 import { certificatesRouter } from "./certificates.js";
 import { assignmentsRouter } from "./assignments.js";
-import { quizzesRouter } from "./quizzes.js";
 import { billingRouter } from "./billing.js";
 import { integrationsRouter } from "./integrations.js";
 import { scormRouter } from "./scorm.js";
@@ -20,7 +19,7 @@ import { dashboardRouter } from "./dashboard.js";
 import { auditLogRouter } from "./auditLog.js";
 import { pathsRouter } from "./paths.js";
 import { careerPathsRouter } from "./careerPaths.js";
-import { academiesRouter } from "./academies.js";
+import { learningPlansRouter } from "./learningPlans.js";
 import { skillsRouter } from "./skills.js";
 import { platformRouter } from "./platform.js";
 
@@ -39,7 +38,6 @@ export const appRouter = router({
   content: contentRouter,
   certificates: certificatesRouter,
   assignments: assignmentsRouter,
-  quizzes: quizzesRouter,
   calendar: calendarRouter,
   notifications: notificationsRouter,
   communities: communitiesRouter,
@@ -49,7 +47,7 @@ export const appRouter = router({
   auditLog: auditLogRouter,
   paths: pathsRouter,
   careerPaths: careerPathsRouter,
-  academies: academiesRouter,
+  learningPlans: learningPlansRouter,
   skills: skillsRouter,
   billing: billingRouter,
   integrations: integrationsRouter,

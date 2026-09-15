@@ -5,7 +5,7 @@ import { rawPrisma } from "../db.js";
  * Every Prisma model that carries a direct `orgId` column — i.e. every model
  * this extension can filter automatically. Join tables and child models with
  * no `orgId` of their own (`UserRole`, `Permission`, `CoursePrerequisite`,
- * `QuizQuestion`, `Lesson`, `Enrollment`, `Post`, ...) are deliberately
+ * `PathCourse`, `Lesson`, `Enrollment`, `Post`, ...) are deliberately
  * absent — NOT because they "inherit" scoping automatically (they don't;
  * that was this file's first, wrong version of this comment, corrected after
  * `roles.updatePermissions` and `users.updateRole` both shipped querying
@@ -37,12 +37,11 @@ const TENANT_SCOPED_MODELS = new Set([
   "Asset",
   "Course",
   "Assignment",
-  "Quiz",
   "CertificateTemplate",
   "Certificate",
   "LearningPath",
   "CareerPath",
-  "Academy",
+  "LearningPlan",
   "CalendarEvent",
   "NotificationItem",
   "AuditLogEntry",

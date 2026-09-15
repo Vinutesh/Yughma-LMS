@@ -18,7 +18,7 @@ const STATS = [
 
 const ACTIVITY = [
   "You completed “The discovery call”",
-  "Priya graded your submission: “Week 3 Quiz”",
+  "Priya graded your submission: “Week 3 Assignment”",
   "You enrolled in “Data Fundamentals”",
 ];
 

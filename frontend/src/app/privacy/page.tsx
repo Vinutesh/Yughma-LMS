@@ -30,9 +30,9 @@ export default function PrivacyPage() {
           </h2>
           <p>
             Account information (name, email, role) provided when your organization is set up;
-            usage data generated as you use the product (course progress, quiz attempts,
-            certificates, logins); and content your organization uploads (courses, assignments,
-            files). We do not sell this data to third parties.
+            usage data generated as you use the product (course progress, certificates, logins);
+            and content your organization uploads (courses, assignments, files). We do not sell
+            this data to third parties.
           </p>
         </section>
 

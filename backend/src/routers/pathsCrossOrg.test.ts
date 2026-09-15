@@ -6,15 +6,15 @@ import type { Context } from "../trpc/context.js";
 
 /**
  * Same class of check as `learningCrossOrg.test.ts`, applied to the
- * Learning Paths / Career Paths / Academies / Skills routers added in this
- * pass. `PathCourse` and `AcademyCourse` carry no direct `orgId` (see
- * tenantScope.ts) — every resolver touching one of these by an id from the
- * request must resolve its tenant-scoped parent (`LearningPath` / `Academy`)
- * first. This proves org A can never reach into org B's rows through
- * either join table, and that a direct-by-id lookup of another org's
- * `LearningPath`/`Academy`/`Skill`/`CareerPath` never leaks.
+ * Learning Paths / Career Paths / Learning Plans / Skills routers added in
+ * this pass. `PathCourse` carries no direct `orgId` (see tenantScope.ts) —
+ * every resolver touching it by an id from the request must resolve its
+ * tenant-scoped parent (`LearningPath`) first. This proves org A can never
+ * reach into org B's rows through that join table, and that a direct-by-id
+ * lookup of another org's `LearningPath`/`LearningPlan`/`Skill`/`CareerPath`
+ * never leaks.
  */
-describe("cross-org protection — learning-path/career-path/academy/skill routers", () => {
+describe("cross-org protection — learning-path/career-path/learning-plan/skill routers", () => {
   let orgAId: string;
   let orgBId: string;
   let adminAId: string;
@@ -22,7 +22,7 @@ describe("cross-org protection — learning-path/career-path/academy/skill route
 
   let courseB: { id: string };
   let pathB: { id: string };
-  let academyB: { id: string };
+  let planB: { id: string };
   let skillB: { id: string };
   let careerPathB: { id: string };
 
@@ -59,10 +59,9 @@ describe("cross-org protection — learning-path/career-path/academy/skill route
     });
     await rawPrisma.pathCourse.create({ data: { pathId: pathB.id, courseId: courseB.id, order: 0 } });
 
-    academyB = await rawPrisma.academy.create({
-      data: { orgId: orgBId, title: "Org B Academy", createdByUserId: userB.id },
+    planB = await rawPrisma.learningPlan.create({
+      data: { orgId: orgBId, title: "Org B Learning Plan", createdByUserId: userB.id, pathIds: [pathB.id] },
     });
-    await rawPrisma.academyCourse.create({ data: { academyId: academyB.id, courseId: courseB.id } });
 
     skillB = await rawPrisma.skill.create({ data: { orgId: orgBId, name: "Org B Skill" } });
 
@@ -99,25 +98,18 @@ describe("cross-org protection — learning-path/career-path/academy/skill route
     expect(stillExists).not.toBeNull();
   });
 
-  it("org A cannot look up org B's academy by id", async () => {
-    await expect(callerA().academies.get({ academyId: academyB.id })).rejects.toMatchObject({
+  it("org A cannot look up org B's learning plan by id", async () => {
+    await expect(callerA().learningPlans.get({ planId: planB.id })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
   });
 
-  it("org A cannot replace org B's academy's course list (AcademyCourse join table)", async () => {
+  it("org A cannot set org B's learning plan's path list", async () => {
     await expect(
-      callerA().academies.setCourses({ academyId: academyB.id, courseIds: [] }),
+      callerA().learningPlans.setPaths({ planId: planB.id, pathIds: [] }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    const untouched = await rawPrisma.academyCourse.findMany({ where: { academyId: academyB.id } });
-    expect(untouched).toHaveLength(1);
-    expect(untouched[0].courseId).toBe(courseB.id);
-  });
-
-  it("org A cannot set org B's academy's path list", async () => {
-    await expect(
-      callerA().academies.setPaths({ academyId: academyB.id, pathIds: [] }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const untouched = await rawPrisma.learningPlan.findUnique({ where: { id: planB.id } });
+    expect(untouched?.pathIds).toEqual([pathB.id]);
   });
 
   it("org A cannot rename org B's skill", async () => {

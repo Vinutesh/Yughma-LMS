@@ -13,7 +13,7 @@ import { assertSafeUrl } from "@/lib/api/validation";
  */
 
 
-export type CalendarItemKind = "deadline" | "assessment_window" | "manual";
+export type CalendarItemKind = "deadline" | "manual";
 
 export interface CalendarItem {
   id: string;

@@ -72,7 +72,7 @@ export default function ManageCertificatesPage() {
         <Card className="flex flex-col items-center gap-2 p-10 text-center">
           <p className="text-sm font-semibold text-text-primary">Nothing issued yet</p>
           <p className="text-xs text-text-tertiary">
-            Set a certificate on a course or assessment, or issue one by hand.
+            Set a certificate on a course or path, or issue one by hand.
           </p>
         </Card>
       ) : (
@@ -266,8 +266,8 @@ function IssueDialog({
   );
 }
 
-/** v1 has no visual designer, so a "template" is just a name that courses,
- * assessments, and paths can point at. This is the only place they're created. */
+/** v1 has no visual designer, so a "template" is just a name that courses
+ * and paths can point at. This is the only place they're created. */
 function TemplatesDialog({
   open,
   onOpenChange,

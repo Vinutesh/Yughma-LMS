@@ -9,16 +9,16 @@ import { router, requirePermission } from "../trpc/trpc.js";
  * `getManagerDashboard` drops the mock's `managerUserId` argument: the
  * backend always scopes to `ctx.session.userId`, never a client-supplied id.
  *
- * `Course`/`Assignment`/`Quiz`/`Certificate` only ever live in the one
- * platform org (see BACKEND_PLAN.md's platform-model note) — `orgAdmin` and
- * `manager` below are reachable by client-org roles, whose own `ctx.db`
- * would come back empty for any of those, so they're read via `ctx.rawDb`
- * instead. `instructor` stays entirely on `ctx.db`: `courses:edit` is only
- * ever granted within the platform org itself, so the caller's own org IS
- * the content owner there. `Submission`/`Enrollment`/`QuizAttempt` carry no
- * `orgId` of their own (see tenantScope.ts), so every query against them
- * below explicitly filters by an already-scoped id set (the caller's own
- * users/team) rather than relying on scoping that doesn't exist for them.
+ * `Course`/`Assignment`/`Certificate` only ever live in the one platform org
+ * (see BACKEND_PLAN.md's platform-model note) — `orgAdmin` and `manager`
+ * below are reachable by client-org roles, whose own `ctx.db` would come
+ * back empty for any of those, so they're read via `ctx.rawDb` instead.
+ * `instructor` stays entirely on `ctx.db`: `courses:edit` is only ever
+ * granted within the platform org itself, so the caller's own org IS the
+ * content owner there. `Submission`/`Enrollment` carry no `orgId` of their
+ * own (see tenantScope.ts), so every query against them below explicitly
+ * filters by an already-scoped id set (the caller's own users/team) rather
+ * than relying on scoping that doesn't exist for them.
  */
 
 export const dashboardRouter = router({

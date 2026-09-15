@@ -78,12 +78,11 @@ model Organization {
   assets              Asset[]
   assetFolders        AssetFolder[]
   assignments         Assignment[]
-  quizzes             Quiz[]
   certificateTemplates CertificateTemplate[]
   certificates        Certificate[]
   paths               LearningPath[]
   careerPaths         CareerPath[]
-  academies           Academy[]
+  learningPlans       LearningPlan[]
   calendarEvents      CalendarEvent[]
   notifications       NotificationItem[]
   auditLogEntries     AuditLogEntry[]
@@ -127,7 +126,6 @@ model User {
 
   enrollments        Enrollment[]
   submissions        Submission[]
-  quizAttempts       QuizAttempt[]
   certificates       Certificate[]
   pathEnrollments    PathEnrollment[]
   notifications      NotificationItem[]
@@ -346,9 +344,7 @@ model Course {
   lessons      Lesson[]
   enrollments  Enrollment[]
   assignments  Assignment[]
-  quizzes      Quiz[]
   pathCourses  PathCourse[]
-  academyCourses AcademyCourse[]
   calendarEvents CalendarEvent[]
   threads      Thread[]
 
@@ -480,79 +476,6 @@ model Submission {
 }
 
 // ---------------------------------------------------------------------------
-// Quizzes / Assessments
-// ---------------------------------------------------------------------------
-
-enum QuizKind {
-  quiz
-  assessment
-}
-
-enum QuizQuestionType {
-  mcq
-  truefalse
-}
-
-model Quiz {
-  id                    String   @id @default(cuid())
-  org                   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  orgId                 String
-  course                Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId              String
-  title                 String
-  kind                  QuizKind @default(quiz)
-  timeLimitMinutes      Int?
-  randomizeOrder        Boolean  @default(false)
-  retakesAllowed        Int      @default(0)
-  passingScorePercent   Int?
-  availableFrom         DateTime?
-  availableTo           DateTime?
-  proctoringRequired    Boolean  @default(false)
-  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
-  certificateTemplateId String?
-  createdByUserId       String
-  createdAt             DateTime @default(now())
-
-  questions QuizQuestion[]
-  attempts  QuizAttempt[]
-
-  @@index([orgId])
-  @@index([courseId])
-}
-
-model QuizQuestion {
-  id              String           @id @default(cuid())
-  quiz            Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  quizId          String
-  order           Int
-  type            QuizQuestionType
-  prompt          String
-  /// [{ id, text }, ...] — kept as JSON since options have no independent
-  /// lifecycle of their own (never queried, never reordered outside the quiz).
-  options         Json
-  correctOptionId String
-  points          Int
-
-  @@index([quizId])
-}
-
-model QuizAttempt {
-  id          String    @id @default(cuid())
-  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  quizId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String
-  startedAt   DateTime  @default(now())
-  submittedAt DateTime?
-  /// { questionId: chosenOptionId }
-  answers     Json
-  score       Int?
-
-  @@index([quizId])
-  @@index([userId])
-}
-
-// ---------------------------------------------------------------------------
 // Certificates
 // ---------------------------------------------------------------------------
 
@@ -564,7 +487,6 @@ model CertificateTemplate {
   createdAt DateTime     @default(now())
 
   courses      Course[]
-  quizzes      Quiz[]
   paths        LearningPath[]
   certificates Certificate[]
 
@@ -573,7 +495,6 @@ model CertificateTemplate {
 
 enum CertificateSourceKind {
   course
-  assessment
   path
   manual
 }
@@ -683,7 +604,13 @@ model CareerPath {
   @@index([orgId])
 }
 
-model Academy {
+/// A named, published group of LearningPaths — "take these paths, in this
+/// bundle, to complete the plan." Membership is a flat pathId list
+/// (validated against real LearningPath rows on write, not FK-enforced —
+/// same pattern CareerPath.skillIds already used), not a join table; this
+/// was Academy before it was narrowed to paths-only and renamed to match
+/// what it's actually for.
+model LearningPlan {
   id              String       @id @default(cuid())
   org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   orgId           String
@@ -692,21 +619,11 @@ model Academy {
   status          PathStatus   @default(draft)
   heroImageAssetId String?
   pathIds         String[]
-  courses         AcademyCourse[]
   createdByUserId String
   createdAt       DateTime     @default(now())
   publishedAt     DateTime?
 
   @@index([orgId])
-}
-
-model AcademyCourse {
-  academy   Academy @relation(fields: [academyId], references: [id], onDelete: Cascade)
-  academyId String
-  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId  String
-
-  @@id([academyId, courseId])
 }
 
 // ---------------------------------------------------------------------------

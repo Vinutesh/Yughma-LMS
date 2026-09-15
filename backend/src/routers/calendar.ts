@@ -11,11 +11,11 @@ import type { ScopedDb } from "../trpc/context.js";
  * by a `courses:edit` holder, and that only ever lives in the platform org,
  * which IS the content owner, so `ctx.db` there is already correct.
  *
- * The learner branch of `list` is different: `Course`/`Assignment`/`Quiz`
- * only ever live in the platform org now (see BACKEND_PLAN.md's
- * platform-model note), so those three reads use `ctx.rawDb` instead — a
- * client-org learner's own `ctx.db` would come back empty for all three,
- * silently hiding every deadline and assessment window. Manual
+ * The learner branch of `list` is different: `Course`/`Assignment` only
+ * ever live in the platform org now (see BACKEND_PLAN.md's platform-model
+ * note), so those reads use `ctx.rawDb` instead — a client-org learner's
+ * own `ctx.db` would come back empty for both, silently hiding every
+ * deadline. Manual
  * `CalendarEvent` rows only ever get created by a platform admin too (same
  * `courses:edit` gate), so a learner's own `ctx.db.calendarEvent` is always
  * empty as well — those are read via `ctx.rawDb`, filtered to events tied
@@ -40,7 +40,7 @@ async function hasEditPermission(db: ScopedDb, roleIds: string[]): Promise<boole
   );
 }
 
-export type CalendarItemKind = "deadline" | "assessment_window" | "manual";
+export type CalendarItemKind = "deadline" | "manual";
 
 export interface CalendarItem {
   id: string;
@@ -105,21 +105,6 @@ export const calendarRouter = router({
           at: a.dueAt,
           courseTitle: courseTitles.get(a.courseId),
           targetUrl: `/assignments/${a.id}`,
-        });
-      }
-
-      const quizzes = await db.quiz.findMany({
-        where: { courseId: { in: courseIdList }, kind: "assessment", availableTo: { not: null } },
-      });
-      for (const q of quizzes) {
-        if (!q.availableTo) continue;
-        items.push({
-          id: `window_${q.id}`,
-          kind: "assessment_window",
-          title: `${q.title} closes`,
-          at: q.availableTo,
-          courseTitle: courseTitles.get(q.courseId),
-          targetUrl: `/assessments/${q.id}`,
         });
       }
     }

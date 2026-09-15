@@ -214,7 +214,7 @@ function EventDetailDialog({
                   router.push(item.targetUrl!);
                 }}
               >
-                {item.kind === "deadline" ? "Go to assignment →" : "Go to assessment →"}
+                Go to assignment →
               </Button>
             )
           )}

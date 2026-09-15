@@ -13,13 +13,12 @@ import * as reportsApi from "@/lib/api/resources/reports";
 import * as orgsApi from "@/lib/api/resources/organizations";
 import type { ReportDateRange } from "@/lib/api/resources/reports";
 
-type ReportKind = "completion" | "engagement" | "compliance" | "quizScores";
+type ReportKind = "completion" | "engagement" | "compliance";
 
 const REPORT_LABELS: Record<ReportKind, string> = {
   completion: "Completion",
   engagement: "Engagement",
   compliance: "Compliance",
-  quizScores: "Quiz Scores",
 };
 
 const RANGE_LABELS: Record<ReportDateRange, string> = {
@@ -82,13 +81,8 @@ function ReportView({ kind, onBack }: { kind: ReportKind; onBack: () => void }) 
     queryFn: () => reportsApi.getComplianceReport(filters),
     enabled: !!session && kind === "compliance",
   });
-  const quizScores = useQuery({
-    queryKey: ["report", "quizScores", session?.org.id, filters],
-    queryFn: () => reportsApi.getQuizScoresReport(filters),
-    enabled: !!session && kind === "quizScores",
-  });
 
-  const isLoading = completion.isLoading || engagement.isLoading || compliance.isLoading || quizScores.isLoading;
+  const isLoading = completion.isLoading || engagement.isLoading || compliance.isLoading;
 
   function exportCsv() {
     if (kind === "completion") {
@@ -109,7 +103,7 @@ function ReportView({ kind, onBack }: { kind: ReportKind; onBack: () => void }) 
           rows.map((r) => [r.userName, r.courseTitle, r.progressPercent, new Date(r.lastActivity).toLocaleDateString()]),
         ),
       );
-    } else if (kind === "compliance") {
+    } else {
       const rows = compliance.data ?? [];
       reportsApi.downloadCsv(
         "compliance-report.csv",
@@ -118,23 +112,13 @@ function ReportView({ kind, onBack }: { kind: ReportKind; onBack: () => void }) 
           rows.map((r) => [r.userName, r.courseTitle, r.status]),
         ),
       );
-    } else {
-      const rows = quizScores.data ?? [];
-      reportsApi.downloadCsv(
-        "quiz-scores-report.csv",
-        reportsApi.toCsv(
-          ["Person", "Quiz", "Course", "Score %", "Submitted"],
-          rows.map((r) => [r.userName, r.quizTitle, r.courseTitle, r.scorePercent, new Date(r.submittedAt).toLocaleDateString()]),
-        ),
-      );
     }
   }
 
   const isEmpty =
     (kind === "completion" && (completion.data?.length ?? 0) === 0) ||
     (kind === "engagement" && (engagement.data?.length ?? 0) === 0) ||
-    (kind === "compliance" && (compliance.data?.length ?? 0) === 0) ||
-    (kind === "quizScores" && (quizScores.data?.length ?? 0) === 0);
+    (kind === "compliance" && (compliance.data?.length ?? 0) === 0);
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -183,13 +167,7 @@ function ReportView({ kind, onBack }: { kind: ReportKind; onBack: () => void }) 
         <Card className="flex flex-col items-center gap-2 p-10 text-center">
           <p className="text-sm font-semibold text-text-primary">
             No{" "}
-            {kind === "completion"
-              ? "completions"
-              : kind === "engagement"
-                ? "activity"
-                : kind === "quizScores"
-                  ? "quiz attempts"
-                  : "records"}{" "}
+            {kind === "completion" ? "completions" : kind === "engagement" ? "activity" : "records"}{" "}
             in this range
           </p>
         </Card>
@@ -235,7 +213,7 @@ function ReportView({ kind, onBack }: { kind: ReportKind; onBack: () => void }) 
             </TableBody>
           </Table>
         </Card>
-      ) : kind === "compliance" ? (
+      ) : (
         <Card className="overflow-hidden">
           <Table>
             <TableHead>
@@ -259,35 +237,6 @@ function ReportView({ kind, onBack }: { kind: ReportKind; onBack: () => void }) 
                       {r.status === "completed" ? "Completed" : r.status === "in_progress" ? "In progress" : "Not started"}
                     </Badge>
                   </TableTd>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableTh>Person</TableTh>
-                <TableTh>Quiz</TableTh>
-                <TableTh>Course</TableTh>
-                <TableTh>Score</TableTh>
-                <TableTh>Submitted</TableTh>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {quizScores.data!.map((r, i) => (
-                <TableRow key={i}>
-                  <TableTd>{r.userName}</TableTd>
-                  <TableTd>{r.quizTitle}</TableTd>
-                  <TableTd>{r.courseTitle}</TableTd>
-                  <TableTd>
-                    <Badge variant={r.scorePercent >= 70 ? "success" : r.scorePercent >= 40 ? "warning" : "danger"}>
-                      {r.scorePercent}%
-                    </Badge>
-                  </TableTd>
-                  <TableTd>{new Date(r.submittedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</TableTd>
                 </TableRow>
               ))}
             </TableBody>

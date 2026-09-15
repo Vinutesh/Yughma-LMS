@@ -3,10 +3,10 @@
  * under `lib/api/resources/` — extracted here after the same two function
  * bodies were copy-pasted into 15+ files during the mock→real migration.
  * Only genuinely identical implementations were consolidated; a couple of
- * files (`assignments.ts`, `quizzes.ts`, `certificates.ts`) keep their own
- * slightly different local variant rather than being forced onto this
- * shared one, since unifying those would have been a behavior change, not
- * just a cleanup.
+ * files (`assignments.ts`, `certificates.ts`) keep their own slightly
+ * different local variant rather than being forced onto this shared one,
+ * since unifying those would have been a behavior change, not just a
+ * cleanup.
  */
 
 /** Prisma reports an absent nullable column as `null`; every domain type in

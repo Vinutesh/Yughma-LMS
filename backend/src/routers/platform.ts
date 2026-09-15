@@ -14,7 +14,7 @@ import { sendAccessGrantedEmail, sendWelcomeEmail } from "../email/resend.js";
  * course — none of that is self-service anywhere else anymore.
  *
  * Every client-org role template here deliberately excludes any
- * `courses`/`assignments`/`quizzes` permission — companies consume content
+ * `courses`/`assignments` permission — companies consume content
  * the platform org authors, they never create their own (see
  * BACKEND_PLAN.md's platform-model note). A client's "Org Admin" manages
  * their own people; a "Manager" sees their own team's progress. There is no
