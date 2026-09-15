@@ -103,11 +103,16 @@ export const scormRouter = router({
       },
     });
 
-    // No trailing slash — Next.js would 308-redirect "/token/" to "/token"
-    // anyway (stripping it) before the route handler ever runs, so this
-    // skips that extra hop. The handler's own injected <base> tag is what
-    // actually makes the package's relative asset paths resolve correctly,
-    // not this URL's shape.
-    return { url: `/api/scorm/${token}` };
+    // Ends in the package's real filename (e.g. "index_lms.html"), not a
+    // bare token — found necessary against a real Articulate Storyline
+    // export, whose own bootstrap script computes sibling-asset paths from
+    // `window.location.pathname` directly rather than through the DOM's
+    // base-URL-aware resolution, so an injected <base> tag alone doesn't
+    // help it. Ending the URL in the real filename means *any*
+    // path-computation strategy — browser-native or a script parsing
+    // location.pathname by hand — lands on the same correct directory,
+    // exactly like a plain static file server would have served this same
+    // package. See the route handler's own doc comment for the full story.
+    return { url: `/api/scorm/${token}/${asset.scormLaunchPath}` };
   }),
 });

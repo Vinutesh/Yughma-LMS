@@ -8,9 +8,25 @@ import { buildScormShimScript } from "yughma-backend/dist/scorm/shim.js";
  * Serves an extracted SCORM package's files — the launch page (dynamically,
  * with the progress-tracking shim injected and this learner's real current
  * state inlined) plus every other file the package references by relative
- * path (static passthrough from R2). One route handles both: an empty
- * `path` means "serve the manifest-declared launch file"; anything else is
- * a sub-resource the launch page's own HTML/JS/CSS asked for by path.
+ * path (static passthrough from R2). One route handles both, distinguished
+ * by comparing the resolved relative path against the manifest's own
+ * declared launch file, not by whether a sub-path was present at all — see
+ * this file's own history for why "empty path = launch" broke real-world
+ * packages.
+ *
+ * Real SCORM packages (this was found against an actual Articulate
+ * Storyline export, not a hypothetical) often compute their own asset
+ * paths from `window.location.pathname` directly inside their bootstrap
+ * script, not from the DOM's base-URL-aware resolution — so an injected
+ * `<base>` tag, which only affects the browser's own HTML-attribute/CSS
+ * resolution, does nothing for that case; `location.pathname` always
+ * reports the real navigated URL regardless of `<base>`. The fix is for
+ * the URL itself to end in the package's real filename (e.g.
+ * ".../index_lms.html"), exactly as a plain static file server would
+ * serve it — then *any* path-computation strategy, browser-native or a
+ * script parsing location.pathname by hand, lands on the same, correct
+ * sibling directory. `scorm.getLaunchUrl` hands out exactly that shape now
+ * instead of a bare token URL.
  *
  * Auth model: the token in the URL is the sole credential, minted once by
  * `scorm.getLaunchUrl` after a real enrollment check — not re-checked per
@@ -33,8 +49,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     return new NextResponse("Not found.", { status: 404 });
   }
 
-  const isLaunch = !path || path.length === 0;
-  const relativePath = isLaunch ? asset.scormLaunchPath : path.join("/");
+  // No sub-path at all still falls back to the launch file, so a bare
+  // "/api/scorm/<token>" keeps working too — but scorm.getLaunchUrl no
+  // longer hands out that shape by default; this is a fallback, not the
+  // primary path.
+  const relativePath = path && path.length > 0 ? path.join("/") : asset.scormLaunchPath;
+  const isLaunch = relativePath === asset.scormLaunchPath;
   const storageKey = `${asset.orgId}/scorm/${asset.id}/${relativePath}`;
 
   let data: Buffer;
@@ -69,17 +89,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw: null, suspendData: "" },
   });
 
-  // Next.js redirects "/api/scorm/<token>/" (no sub-path) to
-  // "/api/scorm/<token>" (strips the trailing slash) before this handler
-  // ever runs — harmless for the request itself, but it means the
-  // document's own URL has no trailing slash either. Every *relative*
-  // reference inside the package's own HTML/CSS ("style.css",
-  // "js/app.js") would then resolve one level too high (replacing the
-  // token itself instead of a path segment under it). An explicit <base>
-  // fixes this regardless of what the actual request URL looked like —
-  // the standard tool for exactly this problem, not a workaround for a
-  // Next.js quirk specifically.
-  const baseTag = `<base href="/api/scorm/${token}/">`;
+  // Still injected as defense-in-depth for packages that *do* use normal
+  // browser-resolved relative URLs — harmless, just no longer the primary
+  // fix, since the URL's own shape now carries the real directory context.
+  const baseTag = `<base href="/api/scorm/${token}/${asset.scormLaunchPath.includes("/") ? asset.scormLaunchPath.slice(0, asset.scormLaunchPath.lastIndexOf("/") + 1) : ""}">`;
   let html = data.toString("utf-8");
   if (/<head[^>]*>/i.test(html)) {
     html = html.replace(/<head[^>]*>/i, (match) => `${match}\n${baseTag}\n${shim}`);
