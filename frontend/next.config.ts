@@ -45,6 +45,14 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
+              // Course video/audio is served from R2 (and later the CDN
+              // Worker's own domain) — a different origin from this app by
+              // design, since content deliberately doesn't route through
+              // the app server. With no media-src rule, CSP falls back to
+              // default-src 'self' and silently blocks every lesson video
+              // from playing at all. https: matches the same pattern img-src
+              // already uses for the same reason.
+              "media-src 'self' https:",
               "font-src 'self' data:",
               "connect-src 'self' https:",
               "frame-ancestors 'none'",
