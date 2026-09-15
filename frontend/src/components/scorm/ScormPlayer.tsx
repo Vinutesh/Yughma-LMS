@@ -81,7 +81,11 @@ export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string;
 
   return (
     <div ref={containerRef} className={"flex flex-col gap-2" + (isFullscreen ? " h-dvh bg-canvas p-3" : "")}>
-      <div className="relative overflow-hidden rounded-lg border border-border">
+      <div
+        className={
+          "relative overflow-hidden rounded-lg border border-border" + (isFullscreen ? " min-h-0 flex-1" : "")
+        }
+      >
         <iframe
           ref={iframeRef}
           title={title}
