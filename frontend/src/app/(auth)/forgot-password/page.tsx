@@ -10,7 +10,7 @@ export default function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader className="items-center text-center">
-        <h1 className="text-lg font-semibold text-text-primary">Reset your password</h1>
+        <h1 className="font-display text-xl font-bold text-text-primary">Reset your password</h1>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-3 text-center">
         <p className="text-sm text-text-tertiary">

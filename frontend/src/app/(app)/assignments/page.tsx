@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ClipboardList } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as assignmentsApi from "@/lib/api/resources/assignments";
 
@@ -26,12 +28,11 @@ export default function LearnerAssignmentsPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading assignments...</p>
       ) : assignments.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">Nothing due</p>
-          <p className="text-xs text-text-tertiary">
-            Assignments appear here once you&apos;re enrolled in a course that has them.
-          </p>
-        </Card>
+        <EmptyState
+          icon={ClipboardList}
+          title="Nothing due"
+          description="Assignments appear here once you're enrolled in a course that has them."
+        />
       ) : (
         <div className="flex flex-col gap-2.5">
           {assignments.map((a) => {

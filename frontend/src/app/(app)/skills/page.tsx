@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as skillsApi from "@/lib/api/resources/skills";
 
@@ -72,12 +73,11 @@ export default function MySkillsPage() {
       </p>
 
       {skills.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No skills tracked yet</p>
-          <p className="text-xs text-text-tertiary">
-            Enroll in a course that builds a skill and it&apos;ll show up here.
-          </p>
-        </Card>
+        <EmptyState
+          icon={Sparkles}
+          title="No skills tracked yet"
+          description="Enroll in a course that builds a skill and it'll show up here."
+        />
       ) : (
         <Card className="divide-y divide-border">
           {skills.map((skill) => {

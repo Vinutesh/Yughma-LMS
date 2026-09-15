@@ -21,8 +21,8 @@ export function TopBar({ onOpenNav }: { onOpenNav: () => void }) {
         <Menu className="size-5" />
       </button>
 
-      <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-text-primary">
-        <Image src="/mark-64.png" alt="" width={20} height={20} className="shrink-0 rounded-[5px]" />
+      <div className="flex min-w-0 items-center gap-2 font-display text-[15px] font-bold text-text-primary">
+        <Image src="/mark-64.png" alt="" width={20} height={20} className="shrink-0 rounded-[5px] shadow-(--shadow-token-sm)" />
         <span className="truncate">{orgName}</span>
       </div>
 

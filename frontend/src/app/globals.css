@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&display=swap");
 @import "tailwindcss";
 
 /*
@@ -27,7 +28,16 @@
   --indigo-100: #d9d7f7;
   --indigo-500: #4a4ac4;
   --indigo-600: #3c3ca3;
+  --indigo-700: #302f86;
   --indigo-900: #26265f;
+
+  /* Achievement/reward accent — certificates, streaks, celebration moments.
+     Deliberately the one warm color in an otherwise cool palette, so it
+     reads as earned rather than decorative. */
+  --gold-100: #f9ecc9;
+  --gold-400: #d9a441;
+  --gold-500: #b9852a;
+  --gold-700: #7a5710;
 
   /* ---- Semantic (light, default) ---- */
   --canvas: var(--gray-100);
@@ -44,6 +54,16 @@
   --accent-soft: var(--indigo-50);
   --accent-soft-fg: #33338f;
   --focus-ring: var(--indigo-500);
+
+  --gold: var(--gold-500);
+  --gold-fg: #ffffff;
+  --gold-bg: var(--gold-100);
+  --gold-bg-fg: var(--gold-700);
+
+  /* Brand gradient — the one place the app is allowed to look "designed"
+     rather than purely functional: auth screens, empty-state art,
+     celebration moments. Never used for body text or data. */
+  --brand-gradient: linear-gradient(135deg, var(--indigo-700) 0%, var(--indigo-500) 55%, #6c63ff 100%);
 
   --success: #197a4e;
   --success-bg: #e6f4ec;
@@ -62,6 +82,11 @@
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
+  /* Headings/brand only — body text stays on the native system stack above
+     for performance and familiarity. Manrope's geometric weight gives page
+     titles and the wordmark actual character instead of blending into the
+     same weight as everything else. */
+  --font-display: "Manrope", var(--font-sans);
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
     monospace;
@@ -95,6 +120,12 @@
     --accent-soft-fg: #c7c7fa;
     --focus-ring: #7c7cef;
 
+    --gold: #e0b354;
+    --gold-fg: #1a1305;
+    --gold-bg: #3a2e0f;
+    --gold-bg-fg: #f3d68a;
+    --brand-gradient: linear-gradient(135deg, #2a2a6e 0%, #4a4ac4 55%, #7c72ff 100%);
+
     --success: #63d29b;
     --success-bg: #10301f;
     --warning: #e8b455;
@@ -126,6 +157,11 @@
   --accent-soft: #2a2a52;
   --accent-soft-fg: #c7c7fa;
   --focus-ring: #7c7cef;
+  --gold: #e0b354;
+  --gold-fg: #1a1305;
+  --gold-bg: #3a2e0f;
+  --gold-bg-fg: #f3d68a;
+  --brand-gradient: linear-gradient(135deg, #2a2a6e 0%, #4a4ac4 55%, #7c72ff 100%);
   --success: #63d29b;
   --success-bg: #10301f;
   --warning: #e8b455;
@@ -153,6 +189,11 @@
   --accent-soft: var(--indigo-50);
   --accent-soft-fg: #33338f;
   --focus-ring: var(--indigo-500);
+  --gold: var(--gold-500);
+  --gold-fg: #ffffff;
+  --gold-bg: var(--gold-100);
+  --gold-bg-fg: var(--gold-700);
+  --brand-gradient: linear-gradient(135deg, var(--indigo-700) 0%, var(--indigo-500) 55%, #6c63ff 100%);
   --success: #197a4e;
   --success-bg: #e6f4ec;
   --warning: #93650a;
@@ -189,8 +230,13 @@
   --color-danger-bg: var(--danger-bg);
   --color-info: var(--info);
   --color-info-bg: var(--info-bg);
+  --color-gold: var(--gold);
+  --color-gold-fg: var(--gold-fg);
+  --color-gold-bg: var(--gold-bg);
+  --color-gold-bg-fg: var(--gold-bg-fg);
 
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 
   --radius-sm: var(--radius-sm);
@@ -202,6 +248,15 @@
   --shadow-token-sm: var(--shadow-sm);
   --shadow-token-md: var(--shadow-md);
   --shadow-token-lg: var(--shadow-lg);
+}
+
+.bg-brand-gradient {
+  background-image: var(--brand-gradient);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 
 * {
@@ -269,6 +324,20 @@ body {
 }
 .motion-drawer {
   animation: drawer-in 220ms var(--ease-standard) forwards;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.motion-menu {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, top);
+  animation: menu-in 120ms var(--ease-standard) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

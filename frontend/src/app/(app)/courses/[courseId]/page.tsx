@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { useSessionStore } from "@/state/sessionStore";
 import { usePermission } from "@/hooks/usePermission";
 import * as coursesApi from "@/lib/api/resources/courses";
+import { gradientForSeed } from "@/lib/utils";
 
 /**
  * There is no more self-enrollment — a learner only ever reaches this page
@@ -39,6 +40,7 @@ export default function CourseDetailPage() {
   const done = new Set(enrollment?.completedLessonIds ?? []);
   const allLessons = course.outline.flatMap((m) => m.lessons);
   const nextLesson = allLessons.find((l) => !done.has(l.id));
+  const progressPercent = allLessons.length === 0 ? 0 : Math.round((done.size / allLessons.length) * 100);
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -49,14 +51,39 @@ export default function CourseDetailPage() {
         ← Courses
       </Link>
 
-      <h1 className="text-xl font-semibold text-text-primary">{course.title}</h1>
-      <p className="mt-1 text-xs text-text-tertiary">
-        by {course.authorName} · {course.moduleCount}{" "}
-        {course.moduleCount === 1 ? "module" : "modules"}
-        {course.estimatedMinutes > 0 && ` · ~${Math.round(course.estimatedMinutes / 60)} hrs`}
-      </p>
+      <div
+        className="relative overflow-hidden rounded-xl p-6 text-white"
+        style={{ backgroundImage: gradientForSeed(course.id) }}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.08]"
+          style={{
+            backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+            backgroundSize: "24px 24px",
+          }}
+          aria-hidden
+        />
+        <h1 className="relative font-display text-2xl font-bold text-balance">{course.title}</h1>
+        <p className="relative mt-1.5 text-sm text-white/75">
+          by {course.authorName} · {course.moduleCount}{" "}
+          {course.moduleCount === 1 ? "module" : "modules"}
+          {course.estimatedMinutes > 0 && ` · ~${Math.round(course.estimatedMinutes / 60)} hrs`}
+        </p>
+        {active && (
+          <div className="relative mt-4 flex items-center gap-2.5">
+            <div className="h-1.5 max-w-56 flex-1 overflow-hidden rounded-full bg-white/20">
+              <div
+                className="h-full rounded-full bg-white transition-[width] duration-700 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold tabular-nums text-white/90">{progressPercent}%</span>
+          </div>
+        )}
+      </div>
+
       {course.description && (
-        <p className="mt-3 text-sm text-text-secondary">{course.description}</p>
+        <p className="mt-4 text-sm text-text-secondary">{course.description}</p>
       )}
 
       {!active && canModerate && (

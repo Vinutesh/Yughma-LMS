@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Circle } from "lucide-react";
+import { Check, Circle, Compass } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as careerPathsApi from "@/lib/api/resources/careerPaths";
 
@@ -72,10 +73,11 @@ export default function CareerPathsPage() {
       </p>
 
       {paths.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">Nothing published yet</p>
-          <p className="text-xs text-text-tertiary">Check back once your org sets one up.</p>
-        </Card>
+        <EmptyState
+          icon={Compass}
+          title="Nothing published yet"
+          description="Check back once your org sets one up."
+        />
       ) : (
         <div className="flex flex-col gap-2.5">
           {paths.map((path) => (

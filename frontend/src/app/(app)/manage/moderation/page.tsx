@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as communitiesApi from "@/lib/api/resources/communities";
@@ -49,9 +51,7 @@ export default function ModerationQueuePage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading queue...</p>
       ) : queue.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">Nothing to review</p>
-        </Card>
+        <EmptyState icon={ShieldCheck} title="Nothing to review" />
       ) : (
         <div className="flex flex-col gap-3">
           {queue.map((row) => (

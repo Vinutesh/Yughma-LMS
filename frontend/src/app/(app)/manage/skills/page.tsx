@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as skillsApi from "@/lib/api/resources/skills";
@@ -50,12 +52,11 @@ export default function SkillsPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading skills...</p>
       ) : skills.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No skills yet</p>
-          <p className="text-xs text-text-tertiary">
-            Create a few, then map them to courses from each course&apos;s Settings tab.
-          </p>
-        </Card>
+        <EmptyState
+          icon={Sparkles}
+          title="No skills yet"
+          description="Create a few, then map them to courses from each course's Settings tab."
+        />
       ) : (
         <Card className="divide-y divide-border">
           {skills.map((skill) => (

@@ -2,10 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Film, Image as ImageIcon, Music, Package, Check } from "lucide-react";
+import { FileText, Film, Image as ImageIcon, Music, Package, Check, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as contentApi from "@/lib/api/resources/content";
 import type { AssetWithMeta } from "@/lib/api/resources/content";
@@ -179,16 +180,15 @@ export function ContentLibrary({ mode, onUseSelected }: ContentLibraryProps) {
       {isLoading ? (
         <p className="p-6 text-sm text-text-tertiary">Loading library...</p>
       ) : visible.length === 0 && pending.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">
-            {assets.length === 0 ? "Nothing in the library yet" : "No matches"}
-          </p>
-          <p className="text-xs text-text-tertiary">
-            {assets.length === 0
+        <EmptyState
+          icon={FolderOpen}
+          title={assets.length === 0 ? "Nothing in the library yet" : "No matches"}
+          description={
+            assets.length === 0
               ? "Upload a video or document to reuse it across courses."
-              : "Try a different search or clear the filters."}
-          </p>
-        </Card>
+              : "Try a different search or clear the filters."
+          }
+        />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {pending.map((u) => (

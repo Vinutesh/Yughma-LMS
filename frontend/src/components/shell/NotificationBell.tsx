@@ -49,8 +49,11 @@ export function NotificationBell() {
         >
           <Bell className="size-4.5" />
           {unreadCount > 0 && (
-            <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold text-white">
-              {unreadCount > 9 ? "9+" : unreadCount}
+            <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-danger opacity-60" aria-hidden />
+              <span className="relative flex size-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
             </span>
           )}
         </button>
@@ -59,7 +62,7 @@ export function NotificationBell() {
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="z-50 w-80 rounded-lg border border-border bg-surface p-1.5 shadow-(--shadow-token-md)"
+          className="motion-menu z-50 w-80 rounded-lg border border-border bg-surface p-1.5 shadow-(--shadow-token-md)"
         >
           <div className="flex items-center justify-between px-2.5 py-1.5">
             <span className="text-xs font-semibold text-text-primary">Notifications</span>

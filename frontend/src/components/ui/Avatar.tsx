@@ -2,18 +2,23 @@
 
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
-import { cn } from "@/lib/utils";
+import { cn, gradientForSeed } from "@/lib/utils";
 
-export function Avatar({
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>) {
+export interface AvatarProps extends React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root> {
+  /** Name or id used to deterministically pick a color — same person always
+   * gets the same one, different people spread across the palette instead
+   * of every avatar being the same flat accent tint. */
+  seed?: string;
+}
+
+export function Avatar({ className, seed, style, ...props }: AvatarProps) {
   return (
     <AvatarPrimitive.Root
       className={cn(
         "relative flex size-8 shrink-0 overflow-hidden rounded-full bg-accent-soft",
         className,
       )}
+      style={seed ? { backgroundImage: gradientForSeed(seed), ...style } : style}
       {...props}
     />
   );

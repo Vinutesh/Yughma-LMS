@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { BookOpen } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as coursesApi from "@/lib/api/resources/courses";
 
@@ -33,12 +35,11 @@ function MyCourses() {
   if (isLoading) return <p className="text-sm text-text-tertiary">Loading your courses...</p>;
   if (courses.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-10 text-center">
-        <p className="text-sm font-semibold text-text-primary">Nothing assigned yet</p>
-        <p className="text-xs text-text-tertiary">
-          Courses show up here once your organization grants you access.
-        </p>
-      </Card>
+      <EmptyState
+        icon={BookOpen}
+        title="Nothing assigned yet"
+        description="Courses show up here once your organization grants you access."
+      />
     );
   }
 

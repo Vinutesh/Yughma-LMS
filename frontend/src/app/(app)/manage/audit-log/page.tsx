@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { History } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/Drawer";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as auditLogApi from "@/lib/api/resources/auditLog";
@@ -107,12 +109,11 @@ export default function AuditLogPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading audit log...</p>
       ) : entries.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">Nothing recorded yet</p>
-          <p className="text-xs text-text-tertiary">
-            Actions like role changes and course lifecycle events show up here.
-          </p>
-        </Card>
+        <EmptyState
+          icon={History}
+          title="Nothing recorded yet"
+          description="Actions like role changes and course lifecycle events show up here."
+        />
       ) : (
         <Card className="overflow-hidden">
           <Table>

@@ -56,7 +56,7 @@ export function DevTrialMenu() {
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="z-50 min-w-56 rounded-lg border border-border bg-surface p-1.5 shadow-(--shadow-token-md)"
+          className="motion-menu z-50 min-w-56 rounded-lg border border-border bg-surface p-1.5 shadow-(--shadow-token-md)"
         >
           {PRESETS.map((p) => (
             <DropdownMenu.Item

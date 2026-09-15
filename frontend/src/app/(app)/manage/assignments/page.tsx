@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card } from "@/components/ui/Card";
+import { ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -12,6 +12,7 @@ import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/compo
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as assignmentsApi from "@/lib/api/resources/assignments";
@@ -56,12 +57,11 @@ export default function ManageAssignmentsPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading assignments...</p>
       ) : assignments.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No assignments yet</p>
-          <p className="text-xs text-text-tertiary">
-            Create one against a course and learners will see it in their list.
-          </p>
-        </Card>
+        <EmptyState
+          icon={ClipboardList}
+          title="No assignments yet"
+          description="Create one against a course and learners will see it in their list."
+        />
       ) : (
         <Table>
           <TableHead>

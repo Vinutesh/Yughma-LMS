@@ -7,8 +7,10 @@ import { Construction } from "lucide-react";
 export function ComingSoon({ title }: { title: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center">
-      <Construction className="size-8 text-text-tertiary" aria-hidden />
-      <h1 className="text-lg font-semibold text-text-primary">{title}</h1>
+      <div className="flex size-12 items-center justify-center rounded-full bg-surface-alt">
+        <Construction className="size-5 text-text-tertiary" aria-hidden />
+      </div>
+      <h1 className="font-display text-lg font-bold text-text-primary">{title}</h1>
       <p className="max-w-sm text-sm text-text-tertiary">
         This feature isn&apos;t available yet — it&apos;s on the roadmap.
       </p>

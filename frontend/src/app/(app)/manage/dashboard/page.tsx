@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { Inbox, Users } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { usePermission } from "@/hooks/usePermission";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { useSessionStore } from "@/state/sessionStore";
 import * as dashboardApi from "@/lib/api/resources/dashboard";
@@ -112,12 +114,11 @@ function InstructorSection() {
 
   if (data.empty) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-10 text-center">
-        <p className="text-sm font-semibold text-text-primary">No submissions yet</p>
-        <p className="text-xs text-text-tertiary">
-          Once learners start your courses, you&apos;ll see activity here.
-        </p>
-      </Card>
+      <EmptyState
+        icon={Inbox}
+        title="No submissions yet"
+        description="Once learners start your courses, you'll see activity here."
+      />
     );
   }
 
@@ -195,10 +196,11 @@ function ManagerSection() {
 
   if (data.teamSize === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-10 text-center">
-        <p className="text-sm font-semibold text-text-primary">No team members assigned yet</p>
-        <p className="text-xs text-text-tertiary">Add people to your team from Users.</p>
-      </Card>
+      <EmptyState
+        icon={Users}
+        title="No team members assigned yet"
+        description="Add people to your team from Users."
+      />
     );
   }
 

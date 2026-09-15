@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card } from "@/components/ui/Card";
+import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/Drawer";
 import { useSessionStore } from "@/state/sessionStore";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import * as platformApi from "@/lib/api/resources/platform";
 import type { Organization, Role } from "@/types/domain";
 
@@ -51,10 +52,11 @@ export default function CompaniesPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading companies...</p>
       ) : orgs.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No companies yet</p>
-          <p className="text-xs text-text-tertiary">Create the first client company to get started.</p>
-        </Card>
+        <EmptyState
+          icon={Building2}
+          title="No companies yet"
+          description="Create the first client company to get started."
+        />
       ) : (
         <Table>
           <TableHead>

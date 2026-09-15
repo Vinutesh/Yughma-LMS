@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/state/sessionStore";
 import * as billingApi from "@/lib/api/resources/billing";
 import type { PlanState } from "@/lib/api/resources/billing";
@@ -59,11 +60,25 @@ export function PlanCards({ planState }: { planState: PlanState }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {billingApi.PLANS.map((plan) => {
           const current = planState.plan === plan.id;
+          const recommended = plan.id === "growth" && !current;
           return (
             <Card
               key={plan.id}
-              className={"flex flex-col gap-3 p-4" + (current ? " border-accent ring-1 ring-accent" : "")}
+              interactive={!current}
+              className={cn(
+                "relative flex flex-col gap-3 p-4",
+                current && "border-accent ring-1 ring-accent",
+                recommended && "border-accent/50",
+              )}
             >
+              {recommended && (
+                <Badge
+                  variant="accent"
+                  className="absolute -top-2.5 left-1/2 -translate-x-1/2 shadow-(--shadow-token-sm)"
+                >
+                  Most popular
+                </Badge>
+              )}
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-text-primary">{plan.name}</p>

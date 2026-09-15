@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { FileBarChart } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as reportsApi from "@/lib/api/resources/reports";
@@ -164,13 +166,12 @@ function ReportView({ kind, onBack }: { kind: ReportKind; onBack: () => void }) 
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading report...</p>
       ) : isEmpty ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">
-            No{" "}
-            {kind === "completion" ? "completions" : kind === "engagement" ? "activity" : "records"}{" "}
-            in this range
-          </p>
-        </Card>
+        <EmptyState
+          icon={FileBarChart}
+          title={`No ${
+            kind === "completion" ? "completions" : kind === "engagement" ? "activity" : "records"
+          } in this range`}
+        />
       ) : kind === "completion" ? (
         <Card className="overflow-hidden">
           <Table>

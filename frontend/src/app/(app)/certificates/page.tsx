@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Award, Check } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as certificatesApi from "@/lib/api/resources/certificates";
 import { CertificateFace, formatLongDate } from "@/components/certificates/CertificateFace";
@@ -55,13 +56,11 @@ export default function MyCertificatesPage() {
       </p>
 
       {certificates.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <Award className="size-6 text-text-tertiary" />
-          <p className="text-sm font-semibold text-text-primary">No certificates yet</p>
-          <p className="text-xs text-text-tertiary">
-            Finish a course or learning path that awards one and it&apos;ll appear here.
-          </p>
-        </Card>
+        <EmptyState
+          icon={Award}
+          title="No certificates yet"
+          description="Finish a course or learning path that awards one and it'll appear here."
+        />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {certificates.map((certificate) => (

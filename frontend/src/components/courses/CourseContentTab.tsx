@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, FileText, Film, Link2, AlignLeft, Package } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Film, Link2, AlignLeft, Package, Layers } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import * as coursesApi from "@/lib/api/resources/courses";
 import type { CourseDetail } from "@/lib/api/resources/courses";
 import type { LessonContentType } from "@/types/domain";
@@ -76,12 +77,11 @@ export function CourseContentTab({ course }: { course: CourseDetail }) {
   return (
     <div className="flex flex-col gap-3">
       {course.outline.length === 0 && (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No modules yet</p>
-          <p className="text-xs text-text-tertiary">
-            Modules group lessons. Add one to start building the syllabus.
-          </p>
-        </Card>
+        <EmptyState
+          icon={Layers}
+          title="No modules yet"
+          description="Modules group lessons. Add one to start building the syllabus."
+        />
       )}
 
       {course.outline.map((mod) => (

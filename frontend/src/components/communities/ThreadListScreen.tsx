@@ -3,12 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import { usePermission } from "@/hooks/usePermission";
 import * as communitiesApi from "@/lib/api/resources/communities";
@@ -69,10 +71,7 @@ export function ThreadListScreen({
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading discussion...</p>
       ) : threads.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No threads yet</p>
-          <p className="text-xs text-text-tertiary">Start the first one.</p>
-        </Card>
+        <EmptyState icon={MessageSquare} title="No threads yet" description="Start the first one." />
       ) : (
         <Card className="divide-y divide-border">
           {threads.map((t) => (

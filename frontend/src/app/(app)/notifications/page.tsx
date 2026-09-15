@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as notificationsApi from "@/lib/api/resources/notifications";
 import type { NotificationCategory, NotificationItem } from "@/types/domain";
@@ -85,10 +87,7 @@ export default function NotificationCenterPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading notifications...</p>
       ) : filtered.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">Nothing here</p>
-          <p className="text-xs text-text-tertiary">You&apos;re all caught up.</p>
-        </Card>
+        <EmptyState icon={Bell} title="Nothing here" description="You're all caught up." />
       ) : (
         <Card className="divide-y divide-border">
           {filtered.map((n) => (

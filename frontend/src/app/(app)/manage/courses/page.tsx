@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card } from "@/components/ui/Card";
+import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -13,6 +13,7 @@ import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/compo
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as coursesApi from "@/lib/api/resources/courses";
@@ -91,12 +92,11 @@ export default function ManageCoursesPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading courses...</p>
       ) : courses.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No courses yet</p>
-          <p className="text-xs text-text-tertiary">
-            Create one, add a module and a lesson, then publish it.
-          </p>
-        </Card>
+        <EmptyState
+          icon={BookOpen}
+          title="No courses yet"
+          description="Create one, add a module and a lesson, then publish it."
+        />
       ) : (
         <Table>
           <TableHead>

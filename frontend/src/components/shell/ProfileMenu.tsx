@@ -23,8 +23,8 @@ export function ProfileMenu() {
           className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           aria-label="Profile menu"
         >
-          <Avatar>
-            <AvatarFallback>{initialsFromName(user.name)}</AvatarFallback>
+          <Avatar seed={user.id}>
+            <AvatarFallback className="text-white">{initialsFromName(user.name)}</AvatarFallback>
           </Avatar>
         </button>
       </DropdownMenu.Trigger>
@@ -32,7 +32,7 @@ export function ProfileMenu() {
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="z-50 min-w-56 rounded-lg border border-border bg-surface p-1.5 shadow-(--shadow-token-md)"
+          className="motion-menu z-50 min-w-56 rounded-lg border border-border bg-surface p-1.5 shadow-(--shadow-token-md)"
         >
           <div className="px-2.5 py-2">
             <p className="text-sm font-semibold text-text-primary">{user.name}</p>

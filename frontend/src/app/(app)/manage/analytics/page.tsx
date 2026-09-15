@@ -1,11 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as analyticsApi from "@/lib/api/resources/analytics";
@@ -43,12 +45,11 @@ export default function AnalyticsPage() {
 
 function LowDataState() {
   return (
-    <Card className="flex flex-col items-center gap-2 p-10 text-center">
-      <p className="text-sm font-semibold text-text-primary">Not enough data yet</p>
-      <p className="text-xs text-text-tertiary">
-        Trends appear once your org has a few weeks of activity.
-      </p>
-    </Card>
+    <EmptyState
+      icon={BarChart3}
+      title="Not enough data yet"
+      description="Trends appear once your org has a few weeks of activity."
+    />
   );
 }
 

@@ -4,9 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, FileText, Film, Package } from "lucide-react";
+import { Check, ExternalLink, FileText, Film, Package, Lock } from "lucide-react";
 import { ScormPlayer } from "@/components/scorm/ScormPlayer";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
@@ -60,12 +61,12 @@ export default function LessonViewerPage() {
         <Link href={`/courses/${courseId}`} className="text-sm font-medium text-accent hover:underline">
           ← {course.title}
         </Link>
-        <Card className="mt-4 flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">You&apos;re not enrolled yet</p>
-          <p className="text-xs text-text-tertiary">
-            Enroll from the course page to open its lessons.
-          </p>
-        </Card>
+        <EmptyState
+          icon={Lock}
+          className="mt-4"
+          title="You're not enrolled yet"
+          description="Enroll from the course page to open its lessons."
+        />
       </div>
     );
   }

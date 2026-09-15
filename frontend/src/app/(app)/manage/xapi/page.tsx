@@ -1,9 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Activity } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
 import * as scormApi from "@/lib/api/resources/scorm";
@@ -33,9 +35,7 @@ export default function XapiStatementsPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading statements...</p>
       ) : statements.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No activity yet</p>
-        </Card>
+        <EmptyState icon={Activity} title="No activity yet" />
       ) : (
         <Card className="overflow-hidden">
           <Table>

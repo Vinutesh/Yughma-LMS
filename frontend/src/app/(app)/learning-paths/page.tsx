@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, Lock } from "lucide-react";
+import { Check, Circle, Lock, Route } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import * as pathsApi from "@/lib/api/resources/paths";
 import { ApiError } from "@/lib/api/errors";
@@ -55,10 +56,11 @@ function MyPaths({ onOpen }: { onOpen: (id: string) => void }) {
 
   if (paths.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-10 text-center">
-        <p className="text-sm font-semibold text-text-primary">You haven&apos;t joined a path yet</p>
-        <p className="text-xs text-text-tertiary">Browse the catalog to find one.</p>
-      </Card>
+      <EmptyState
+        icon={Route}
+        title="You haven't joined a path yet"
+        description="Browse the catalog to find one."
+      />
     );
   }
 
@@ -124,12 +126,11 @@ function PathCatalog({ onOpen }: { onOpen: (id: string) => void }) {
 
   if (paths.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-10 text-center">
-        <p className="text-sm font-semibold text-text-primary">Nothing new right now</p>
-        <p className="text-xs text-text-tertiary">
-          You&apos;ve joined every published path available to you.
-        </p>
-      </Card>
+      <EmptyState
+        icon={Check}
+        title="Nothing new right now"
+        description="You've joined every published path available to you."
+      />
     );
   }
 

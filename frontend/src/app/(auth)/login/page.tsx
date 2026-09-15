@@ -63,7 +63,7 @@ export default function LoginPage() {
           <Image src="/mark-64.png" alt="" width={24} height={24} className="rounded-md" />
           <span className="text-sm font-semibold text-text-primary">Yughma LMS</span>
         </div>
-        <h1 className="text-lg font-semibold text-text-primary">Log in</h1>
+        <h1 className="font-display text-xl font-bold text-text-primary">Log in</h1>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={onSubmit}>

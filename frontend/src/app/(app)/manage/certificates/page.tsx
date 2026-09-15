@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Award } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/Label";
@@ -69,12 +71,11 @@ export default function ManageCertificatesPage() {
       {isLoading ? (
         <p className="text-sm text-text-tertiary">Loading certificates...</p>
       ) : certificates.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">Nothing issued yet</p>
-          <p className="text-xs text-text-tertiary">
-            Set a certificate on a course or path, or issue one by hand.
-          </p>
-        </Card>
+        <EmptyState
+          icon={Award}
+          title="Nothing issued yet"
+          description="Set a certificate on a course or path, or issue one by hand."
+        />
       ) : (
         <Card className="overflow-hidden">
           <Table>

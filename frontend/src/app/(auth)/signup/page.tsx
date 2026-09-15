@@ -23,7 +23,7 @@ export default function SignupPage() {
           <Image src="/mark-64.png" alt="" width={24} height={24} className="rounded-md" />
           <span className="text-sm font-semibold text-text-primary">Yughma LMS</span>
         </div>
-        <h1 className="text-lg font-semibold text-text-primary">Get in touch</h1>
+        <h1 className="font-display text-xl font-bold text-text-primary">Get in touch</h1>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-4 text-center">

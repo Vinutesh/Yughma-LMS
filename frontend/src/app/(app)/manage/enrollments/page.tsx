@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card } from "@/components/ui/Card";
+import { MousePointerClick, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { useSessionStore } from "@/state/sessionStore";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import * as coursesApi from "@/lib/api/resources/courses";
 import * as platformApi from "@/lib/api/resources/platform";
 
@@ -68,17 +69,19 @@ export default function CourseAccessPage() {
       </select>
 
       {!courseId ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">Pick a course</p>
-          <p className="text-xs text-text-tertiary">Its access list shows up here.</p>
-        </Card>
+        <EmptyState
+          icon={MousePointerClick}
+          title="Pick a course"
+          description="Its access list shows up here."
+        />
       ) : isLoading ? (
         <p className="text-sm text-text-tertiary">Loading access list...</p>
       ) : grants.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
-          <p className="text-sm font-semibold text-text-primary">No one has access yet</p>
-          <p className="text-xs text-text-tertiary">Grant access to a person at a client company.</p>
-        </Card>
+        <EmptyState
+          icon={Users}
+          title="No one has access yet"
+          description="Grant access to a person at a client company."
+        />
       ) : (
         <Table>
           <TableHead>
