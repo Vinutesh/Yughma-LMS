@@ -3,7 +3,6 @@ import type {
   Asset,
   AssetFolder,
   CalendarEvent,
-  CareerPath,
   Certificate,
   CertificateTemplate,
   Course,
@@ -326,19 +325,6 @@ export const MOCK_CALENDAR_EVENTS: CalendarEvent[] = [
     startsAt: daysAhead(4),
     link: "https://meet.google.com/xyz",
     createdByUserId: "user_priya",
-  },
-];
-
-export const MOCK_CAREER_PATHS: CareerPath[] = [
-  {
-    id: "career_senior_ae",
-    orgId: ORG,
-    title: "Senior Account Executive",
-    status: "published",
-    skillIds: ["skill_consultative_selling", "skill_objection_handling", "skill_data_analysis"],
-    createdByUserId: "user_priya",
-    createdAt: daysAgo(10),
-    publishedAt: daysAgo(9),
   },
 ];
 

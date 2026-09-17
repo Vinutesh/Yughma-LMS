@@ -1,20 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, Lock, Route } from "lucide-react";
+import { Check, Circle, Lock, Route, Search } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/patterns/EmptyState";
+import { SearchInput } from "@/components/patterns/SearchInput";
 import { useSessionStore } from "@/state/sessionStore";
 import * as pathsApi from "@/lib/api/resources/paths";
 import { ApiError } from "@/lib/api/errors";
 
 export default function LearningPathsPage() {
-  const [openPathId, setOpenPathId] = useState<string | null>(null);
+  // `?open=<pathId>` lets other screens (the Learning Plans catalog) deep
+  // link straight into a specific path's detail view — that view (join
+  // button, ordered steps, progress) only exists here, so a plan's path
+  // list opens it this way rather than duplicating it.
+  const searchParams = useSearchParams();
+  const [openPathId, setOpenPathId] = useState<string | null>(searchParams.get("open"));
+  const [search, setSearch] = useState("");
 
   if (openPathId) {
     return <PathDetail pathId={openPathId} onBack={() => setOpenPathId(null)} />;
@@ -27,34 +35,47 @@ export default function LearningPathsPage() {
         Courses grouped into a sequence. Each one unlocks when you finish the one before it.
       </p>
 
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search paths..."
+        aria-label="Search learning paths"
+        className="mb-4"
+      />
+
       <Tabs defaultValue="mine">
         <TabsList>
           <TabsTrigger value="mine">My Paths</TabsTrigger>
           <TabsTrigger value="catalog">Catalog</TabsTrigger>
         </TabsList>
         <TabsContent value="mine">
-          <MyPaths onOpen={setOpenPathId} />
+          <MyPaths onOpen={setOpenPathId} search={search} />
         </TabsContent>
         <TabsContent value="catalog">
-          <PathCatalog onOpen={setOpenPathId} />
+          <PathCatalog onOpen={setOpenPathId} search={search} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function MyPaths({ onOpen }: { onOpen: (id: string) => void }) {
+function MyPaths({ onOpen, search }: { onOpen: (id: string) => void; search: string }) {
   const session = useSessionStore((s) => s.session);
 
-  const { data: paths = [], isLoading } = useQuery({
+  const { data: allPaths = [], isLoading } = useQuery({
     queryKey: ["myPaths", session?.org.id, session?.user.id],
     queryFn: () => pathsApi.listMyPaths(),
     enabled: !!session,
   });
 
+  const paths = useMemo(
+    () => allPaths.filter((p) => p.title.toLowerCase().includes(search.toLowerCase())),
+    [allPaths, search],
+  );
+
   if (isLoading) return <p className="text-sm text-text-tertiary">Loading paths...</p>;
 
-  if (paths.length === 0) {
+  if (allPaths.length === 0) {
     return (
       <EmptyState
         icon={Route}
@@ -62,6 +83,10 @@ function MyPaths({ onOpen }: { onOpen: (id: string) => void }) {
         description="Browse the catalog to find one."
       />
     );
+  }
+
+  if (paths.length === 0) {
+    return <EmptyState icon={Search} title="No matches" description="Try a different search." />;
   }
 
   return (
@@ -100,16 +125,21 @@ function MyPaths({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 
-function PathCatalog({ onOpen }: { onOpen: (id: string) => void }) {
+function PathCatalog({ onOpen, search }: { onOpen: (id: string) => void; search: string }) {
   const session = useSessionStore((s) => s.session);
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
-  const { data: paths = [], isLoading } = useQuery({
+  const { data: allPaths = [], isLoading } = useQuery({
     queryKey: ["pathCatalog", session?.org.id, session?.user.id],
     queryFn: () => pathsApi.listPathCatalog(),
     enabled: !!session,
   });
+
+  const paths = useMemo(
+    () => allPaths.filter((p) => p.title.toLowerCase().includes(search.toLowerCase())),
+    [allPaths, search],
+  );
 
   const join = useMutation({
     mutationFn: (pathId: string) => pathsApi.enrollInPath(pathId),
@@ -124,7 +154,7 @@ function PathCatalog({ onOpen }: { onOpen: (id: string) => void }) {
 
   if (isLoading) return <p className="text-sm text-text-tertiary">Loading catalog...</p>;
 
-  if (paths.length === 0) {
+  if (allPaths.length === 0) {
     return (
       <EmptyState
         icon={Check}
@@ -132,6 +162,10 @@ function PathCatalog({ onOpen }: { onOpen: (id: string) => void }) {
         description="You've joined every published path available to you."
       />
     );
+  }
+
+  if (paths.length === 0) {
+    return <EmptyState icon={Search} title="No matches" description="Try a different search." />;
   }
 
   return (

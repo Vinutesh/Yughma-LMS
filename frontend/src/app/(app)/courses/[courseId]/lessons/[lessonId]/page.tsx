@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ExternalLink, FileText, Film, Package, Lock } from "lucide-react";
 import { ScormPlayer } from "@/components/scorm/ScormPlayer";
+import { CourseVideoPlayer } from "@/components/courses/CourseVideoPlayer";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -106,7 +107,7 @@ export default function LessonViewerPage() {
 
       {lesson.contentType === "video" &&
         (asset?.url ? (
-          <video key={lesson.id} src={asset.url} controls className="w-full rounded-md bg-black" />
+          <CourseVideoPlayer key={lesson.id} src={asset.url} />
         ) : (
           <Card className="flex flex-col items-center justify-center gap-2 p-12 text-center">
             <Film className="size-8 text-text-tertiary" />

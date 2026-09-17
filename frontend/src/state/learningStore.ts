@@ -8,7 +8,6 @@ import type {
   Asset,
   AssetFolder,
   CalendarEvent,
-  CareerPath,
   Certificate,
   CertificateTemplate,
   ContentReport,
@@ -34,7 +33,6 @@ import {
   MOCK_ASSETS,
   MOCK_ASSIGNMENTS,
   MOCK_CALENDAR_EVENTS,
-  MOCK_CAREER_PATHS,
   MOCK_CERTIFICATES,
   MOCK_CERTIFICATE_TEMPLATES,
   MOCK_COURSES,
@@ -116,11 +114,6 @@ interface LearningState {
   updateCalendarEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   deleteCalendarEvent: (id: string) => void;
 
-  careerPaths: CareerPath[];
-  addCareerPath: (path: CareerPath) => void;
-  updateCareerPath: (id: string, patch: Partial<CareerPath>) => void;
-  deleteCareerPath: (id: string) => void;
-
   learningPlans: LearningPlan[];
   addLearningPlan: (plan: LearningPlan) => void;
   updateLearningPlan: (id: string, patch: Partial<LearningPlan>) => void;
@@ -173,7 +166,6 @@ const SEED = {
   paths: MOCK_LEARNING_PATHS,
   pathEnrollments: MOCK_PATH_ENROLLMENTS,
   calendarEvents: MOCK_CALENDAR_EVENTS,
-  careerPaths: MOCK_CAREER_PATHS,
   learningPlans: MOCK_LEARNING_PLANS,
   lrsConnections: [] as LrsConnection[],
   integrations: [] as Integration[],
@@ -289,14 +281,6 @@ export const useLearningStore = create<LearningState>()(
         })),
       deleteCalendarEvent: (id) =>
         set((s) => ({ calendarEvents: s.calendarEvents.filter((e) => e.id !== id) })),
-
-      addCareerPath: (path) => set((s) => ({ careerPaths: [path, ...s.careerPaths] })),
-      updateCareerPath: (id, patch) =>
-        set((s) => ({
-          careerPaths: s.careerPaths.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-        })),
-      deleteCareerPath: (id) =>
-        set((s) => ({ careerPaths: s.careerPaths.filter((p) => p.id !== id) })),
 
       addLearningPlan: (plan) => set((s) => ({ learningPlans: [plan, ...s.learningPlans] })),
       updateLearningPlan: (id, patch) =>

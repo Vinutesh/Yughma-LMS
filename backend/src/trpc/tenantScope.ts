@@ -40,7 +40,6 @@ const TENANT_SCOPED_MODELS = new Set([
   "CertificateTemplate",
   "Certificate",
   "LearningPath",
-  "CareerPath",
   "LearningPlan",
   "CalendarEvent",
   "NotificationItem",

@@ -14,7 +14,7 @@ import type { Context } from "../trpc/context.js";
  * here happens inside ONE org, so `tenantScope.ts`'s org filter was never
  * going to catch it — these resolvers used to trust a client-supplied
  * `learnerContext` boolean (courses.get/assignments.get) or had no
- * status/permission check at all (paths/careerPaths/learningPlans.get,
+ * status/permission check at all (paths/learningPlans.get,
  * communities createThread/replyToThread).
  */
 describe("same-org access control — draft/invite-only content and course-thread membership", () => {
@@ -28,7 +28,6 @@ describe("same-org access control — draft/invite-only content and course-threa
   let inviteCourseId: string;
   let assignmentId: string;
   let draftPathId: string;
-  let draftCareerPathId: string;
   let draftPlanId: string;
   let courseThreadId: string;
 
@@ -99,11 +98,6 @@ describe("same-org access control — draft/invite-only content and course-threa
     });
     draftPathId = draftPath.id;
 
-    const draftCareerPath = await rawPrisma.careerPath.create({
-      data: { orgId, title: "Draft career path", status: "draft", createdByUserId: instructorId },
-    });
-    draftCareerPathId = draftCareerPath.id;
-
     const draftPlan = await rawPrisma.learningPlan.create({
       data: { orgId, title: "Draft learning plan", status: "draft", createdByUserId: instructorId },
     });
@@ -161,11 +155,6 @@ describe("same-org access control — draft/invite-only content and course-threa
   it("a non-editor caller cannot read a draft learning path by id", async () => {
     const caller = appRouter.createCaller(ctxFor(outsiderId, []));
     await expect(caller.paths.get({ pathId: draftPathId })).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-
-  it("a non-editor caller cannot read a draft career path by id", async () => {
-    const caller = appRouter.createCaller(ctxFor(outsiderId, []));
-    await expect(caller.careerPaths.get({ pathId: draftCareerPathId })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("a non-editor caller cannot read a draft learning plan by id", async () => {

@@ -18,7 +18,6 @@ import { analyticsRouter } from "./analytics.js";
 import { dashboardRouter } from "./dashboard.js";
 import { auditLogRouter } from "./auditLog.js";
 import { pathsRouter } from "./paths.js";
-import { careerPathsRouter } from "./careerPaths.js";
 import { learningPlansRouter } from "./learningPlans.js";
 import { skillsRouter } from "./skills.js";
 import { platformRouter } from "./platform.js";
@@ -46,7 +45,6 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   auditLog: auditLogRouter,
   paths: pathsRouter,
-  careerPaths: careerPathsRouter,
   learningPlans: learningPlansRouter,
   skills: skillsRouter,
   billing: billingRouter,

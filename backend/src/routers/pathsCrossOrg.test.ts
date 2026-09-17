@@ -6,15 +6,14 @@ import type { Context } from "../trpc/context.js";
 
 /**
  * Same class of check as `learningCrossOrg.test.ts`, applied to the
- * Learning Paths / Career Paths / Learning Plans / Skills routers added in
- * this pass. `PathCourse` carries no direct `orgId` (see tenantScope.ts) —
- * every resolver touching it by an id from the request must resolve its
+ * Learning Paths / Learning Plans / Skills routers added in this pass.
+ * `PathCourse` carries no direct `orgId` (see tenantScope.ts) — every
+ * resolver touching it by an id from the request must resolve its
  * tenant-scoped parent (`LearningPath`) first. This proves org A can never
  * reach into org B's rows through that join table, and that a direct-by-id
- * lookup of another org's `LearningPath`/`LearningPlan`/`Skill`/`CareerPath`
- * never leaks.
+ * lookup of another org's `LearningPath`/`LearningPlan`/`Skill` never leaks.
  */
-describe("cross-org protection — learning-path/career-path/learning-plan/skill routers", () => {
+describe("cross-org protection — learning-path/learning-plan/skill routers", () => {
   let orgAId: string;
   let orgBId: string;
   let adminAId: string;
@@ -24,7 +23,6 @@ describe("cross-org protection — learning-path/career-path/learning-plan/skill
   let pathB: { id: string };
   let planB: { id: string };
   let skillB: { id: string };
-  let careerPathB: { id: string };
 
   function ctxFor(userId: string, orgId: string, roleIds: string[]): Context {
     return { session: { userId, orgId, roleIds }, db: scopedPrisma(orgId), rawDb: rawPrisma };
@@ -64,10 +62,6 @@ describe("cross-org protection — learning-path/career-path/learning-plan/skill
     });
 
     skillB = await rawPrisma.skill.create({ data: { orgId: orgBId, name: "Org B Skill" } });
-
-    careerPathB = await rawPrisma.careerPath.create({
-      data: { orgId: orgBId, title: "Org B Career Path", createdByUserId: userB.id, skillIds: [skillB.id] },
-    });
   });
 
   afterAll(async () => {
@@ -126,19 +120,5 @@ describe("cross-org protection — learning-path/career-path/learning-plan/skill
     });
     const untouched = await rawPrisma.skill.findUnique({ where: { id: skillB.id } });
     expect(untouched?.archived).toBe(false);
-  });
-
-  it("org A cannot look up org B's career path by id", async () => {
-    await expect(callerA().careerPaths.get({ pathId: careerPathB.id })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-  });
-
-  it("org A cannot set org B's career path's skill list", async () => {
-    await expect(
-      callerA().careerPaths.setSkills({ pathId: careerPathB.id, skillIds: [] }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    const untouched = await rawPrisma.careerPath.findUnique({ where: { id: careerPathB.id } });
-    expect(untouched?.skillIds).toEqual([skillB.id]);
   });
 });

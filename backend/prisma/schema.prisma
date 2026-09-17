@@ -81,7 +81,6 @@ model Organization {
   certificateTemplates CertificateTemplate[]
   certificates        Certificate[]
   paths               LearningPath[]
-  careerPaths         CareerPath[]
   learningPlans       LearningPlan[]
   calendarEvents      CalendarEvent[]
   notifications       NotificationItem[]
@@ -590,26 +589,11 @@ model CourseSkill {
   @@id([courseId, skillId])
 }
 
-model CareerPath {
-  id              String       @id @default(cuid())
-  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  orgId           String
-  title           String
-  status          PathStatus   @default(draft)
-  skillIds        String[]
-  createdByUserId String
-  createdAt       DateTime     @default(now())
-  publishedAt     DateTime?
-
-  @@index([orgId])
-}
-
 /// A named, published group of LearningPaths — "take these paths, in this
 /// bundle, to complete the plan." Membership is a flat pathId list
-/// (validated against real LearningPath rows on write, not FK-enforced —
-/// same pattern CareerPath.skillIds already used), not a join table; this
-/// was Academy before it was narrowed to paths-only and renamed to match
-/// what it's actually for.
+/// (validated against real LearningPath rows on write, not FK-enforced),
+/// not a join table; this was Academy before it was narrowed to paths-only
+/// and renamed to match what it's actually for.
 model LearningPlan {
   id              String       @id @default(cuid())
   org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)

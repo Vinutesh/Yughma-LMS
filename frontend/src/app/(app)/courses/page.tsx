@@ -1,11 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Search } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/patterns/EmptyState";
+import { SearchInput } from "@/components/patterns/SearchInput";
 import { useSessionStore } from "@/state/sessionStore";
 import * as coursesApi from "@/lib/api/resources/courses";
 
@@ -16,24 +18,37 @@ import * as coursesApi from "@/lib/api/resources/courses";
  */
 export default function LearnerCoursesPage() {
   const session = useSessionStore((s) => s.session);
+  const [search, setSearch] = useState("");
 
   return (
     <div className="mx-auto max-w-4xl p-8">
-      <h1 className="mb-5 text-xl font-semibold text-text-primary">Courses</h1>
-      {session && <MyCourses />}
+      <h1 className="mb-4 text-xl font-semibold text-text-primary">Courses</h1>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search courses..."
+        aria-label="Search courses"
+        className="mb-4"
+      />
+      {session && <MyCourses search={search} />}
     </div>
   );
 }
 
-function MyCourses() {
+function MyCourses({ search }: { search: string }) {
   const session = useSessionStore((s) => s.session)!;
-  const { data: courses = [], isLoading } = useQuery({
+  const { data: allCourses = [], isLoading } = useQuery({
     queryKey: ["myCourses", session.org.id, session.user.id],
     queryFn: () => coursesApi.listMyCourses(),
   });
 
+  const courses = useMemo(
+    () => allCourses.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())),
+    [allCourses, search],
+  );
+
   if (isLoading) return <p className="text-sm text-text-tertiary">Loading your courses...</p>;
-  if (courses.length === 0) {
+  if (allCourses.length === 0) {
     return (
       <EmptyState
         icon={BookOpen}
@@ -41,6 +56,9 @@ function MyCourses() {
         description="Courses show up here once your organization grants you access."
       />
     );
+  }
+  if (courses.length === 0) {
+    return <EmptyState icon={Search} title="No matches" description="Try a different search." />;
   }
 
   return (

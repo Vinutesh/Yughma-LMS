@@ -365,18 +365,6 @@ export interface CalendarEvent {
   createdByUserId: string;
 }
 
-/** A target role plus the ordered skills it requires, each resolved to
- * whichever content already builds it — no content authoring of its own. */
-export interface CareerPath {
-  id: string;
-  orgId: string;
-  title: string;
-  status: PathStatus;
-  skillIds: string[];
-  createdByUserId: string;
-  createdAt: string;
-  publishedAt?: string;
-}
 
 /** A named, published bundle of LearningPaths — surfaces as a Catalog
  * filter, not a nav item (see the module's open questions). This was

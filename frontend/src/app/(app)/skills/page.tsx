@@ -1,26 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Sparkles } from "lucide-react";
+import { Check, Search, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/patterns/EmptyState";
+import { SearchInput } from "@/components/patterns/SearchInput";
 import { useSessionStore } from "@/state/sessionStore";
 import * as skillsApi from "@/lib/api/resources/skills";
 
 export default function MySkillsPage() {
   const session = useSessionStore((s) => s.session);
   const [openSkillId, setOpenSkillId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
-  const { data: skills = [], isLoading } = useQuery({
+  const { data: allSkills = [], isLoading } = useQuery({
     queryKey: ["mySkills", session?.org.id, session?.user.id],
     queryFn: () => skillsApi.getMySkills(),
     enabled: !!session,
   });
 
-  const open = skills.find((s) => s.skillId === openSkillId) ?? null;
+  const skills = useMemo(
+    () => allSkills.filter((s) => s.name.toLowerCase().includes(search.toLowerCase())),
+    [allSkills, search],
+  );
+
+  const open = allSkills.find((s) => s.skillId === openSkillId) ?? null;
 
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading skills...</p>;
 
@@ -67,17 +74,27 @@ export default function MySkillsPage() {
   return (
     <div className="mx-auto max-w-2xl p-8">
       <h1 className="mb-1 text-xl font-semibold text-text-primary">My Skills</h1>
-      <p className="mb-5 text-sm text-text-tertiary">
+      <p className="mb-4 text-sm text-text-tertiary">
         What the courses you take are building. Progress is the number of courses you&apos;ve
         completed for each skill.
       </p>
 
-      {skills.length === 0 ? (
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search skills..."
+        aria-label="Search skills"
+        className="mb-4"
+      />
+
+      {allSkills.length === 0 ? (
         <EmptyState
           icon={Sparkles}
           title="No skills tracked yet"
           description="Enroll in a course that builds a skill and it'll show up here."
         />
+      ) : skills.length === 0 ? (
+        <EmptyState icon={Search} title="No matches" description="Try a different search." />
       ) : (
         <Card className="divide-y divide-border">
           {skills.map((skill) => {

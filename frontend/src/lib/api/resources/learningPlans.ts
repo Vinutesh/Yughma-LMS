@@ -8,8 +8,8 @@ import { nullsToUndefined, toDateStrings } from "@/lib/api/serialization";
  * was narrowed to paths-only and renamed). `orgId`/`userId` arguments the
  * mock signatures took are dropped — the backend infers both from the
  * caller's session. `pathIds` mirrors the schema: a flat array field on
- * `LearningPlan` itself (like `CareerPath.skillIds`), validated against
- * real `LearningPath` rows server-side but stored directly.
+ * `LearningPlan` itself, validated against real `LearningPath` rows
+ * server-side but stored directly.
  */
 
 export interface LearningPlanSummary {

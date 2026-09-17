@@ -33,7 +33,7 @@ export const LEARNING_NAV: NavSection[] = [
     items: [
       { label: "Courses", href: "/courses" },
       { label: "Learning Paths", href: "/learning-paths" },
-      { label: "Career Paths", href: "/career-paths" },
+      { label: "Learning Plans", href: "/learning-plans" },
       { label: "Calendar", href: "/calendar" },
       { label: "Community", href: "/community" },
     ],
@@ -63,7 +63,6 @@ export const MANAGE_NAV: NavSection[] = [
       { label: "Courses", href: "/manage/courses", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Content Library", href: "/manage/content", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Paths", href: "/manage/paths", requires: { resource: RESOURCES.courses, action: "edit" } },
-      { label: "Career Paths", href: "/manage/career-paths", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Learning Plans", href: "/manage/learning-plans", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Skills", href: "/manage/skills", requires: { resource: RESOURCES.courses, action: "edit" } },
     ],

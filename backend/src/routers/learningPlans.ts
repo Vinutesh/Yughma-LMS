@@ -14,9 +14,9 @@ import type { ScopedDb } from "../trpc/context.js";
  * stay on `ctx.db`. The learner-facing reads (`catalog`/`get`) are reachable
  * by anyone, so those read via `ctx.rawDb` instead; the caller's own
  * `ctx.db` would come back empty for a client-org learner. `pathIds` mirrors
- * the schema: a flat array field on `LearningPlan` itself (like
- * `CareerPath.skillIds`), not a join table, so it's validated against real
- * `LearningPath` rows but stored directly.
+ * the schema: a flat array field on `LearningPlan` itself, not a join
+ * table, so it's validated against real `LearningPath` rows but stored
+ * directly.
  */
 
 /** Same pattern as `calendar.ts`/`communities.ts`/`courses.ts`: re-derived
@@ -39,7 +39,7 @@ export const learningPlansRouter = router({
     const plan = await ctx.rawDb.learningPlan.findUnique({ where: { id: input.planId } });
     if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "Learning plan not found." });
     // Draft plans are an authoring artifact — same visibility rule
-    // `courses.get`/`paths.get`/`careerPaths.get` enforce, org check
+    // `courses.get`/`paths.get` enforce, org check
     // included: without it, any org holding `courses:edit` (never true for
     // a real client org, but not something to rely on here) could preview
     // every other org's drafts by id.
