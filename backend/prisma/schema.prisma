@@ -53,8 +53,18 @@ model Organization {
   /// created by a platform admin, never self-service. See
   /// `trpc/trpc.ts`'s `requirePlatformAdmin` and `routers/platform.ts`.
   isPlatform         Boolean   @default(false)
+  /// Archiving a client org (never the platform org itself — enforced in
+  /// `platform.ts`, not here) blocks every one of its users from logging in
+  /// (see `auth/login.ts`) without touching a single row of their real
+  /// history — enrollments, certificates, submissions all stay intact and
+  /// reversible, unlike a hard delete. Named to match `UserStatus` below.
+  status             OrganizationStatus @default(active)
   industry           String?
   size               String?
+  /// Despite the name, an R2 storage key (e.g. "org_.../logo.png"), not a
+  /// real URL — the bucket is private, so every read mints a fresh signed
+  /// URL server-side (see `organizations.ts`'s `getLogoUrl`) rather than
+  /// this field ever being directly usable as an <img src>.
   logoUrl            String?
   accentColor        String?
   sessionTimeoutHours Int?
@@ -100,6 +110,11 @@ model Organization {
 enum UserStatus {
   active
   deactivated
+}
+
+enum OrganizationStatus {
+  active
+  archived
 }
 
 model User {

@@ -81,6 +81,40 @@ export async function updateOrgBranding(
   }
 }
 
+/** Two steps, same pattern as `content.uploadAsset`: ask the backend for a
+ * signed upload URL, PUT the file straight to R2, then persist the
+ * resulting storage key via `updateOrgBranding`. Overwrites any previous
+ * logo — one fixed key per org (see `requestLogoUpload`'s own doc comment). */
+export async function uploadOrgLogo(file: File): Promise<void> {
+  try {
+    const { uploadUrl, storageKey } = await trpcClient.organizations.requestLogoUpload.mutate({
+      filename: file.name,
+      contentType: file.type || "application/octet-stream",
+    });
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!res.ok) throw new Error("Upload failed.");
+    await trpcClient.organizations.updateBranding.mutate({ logoUrl: storageKey });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** The bucket is private, so this mints a fresh short-lived signed URL each
+ * call — call it again rather than caching the result past its expiry
+ * (react-query's own `staleTime` handles that for callers, see `TopBar`). */
+export async function getOrgLogoUrl(): Promise<string | null> {
+  try {
+    const { url } = await trpcClient.organizations.getLogoUrl.query();
+    return url;
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
 export async function updateOrgSecurity(
   patch: Partial<Pick<Organization, "sessionTimeoutHours" | "requireSso">>,
 ): Promise<void> {

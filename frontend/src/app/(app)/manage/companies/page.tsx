@@ -64,6 +64,8 @@ export default function CompaniesPage() {
               <TableTh>Company</TableTh>
               <TableTh>Industry</TableTh>
               <TableTh>Size</TableTh>
+              <TableTh>Status</TableTh>
+              <TableTh className="w-24" />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -72,6 +74,14 @@ export default function CompaniesPage() {
                 <TableTd className="font-medium text-text-primary">{o.name}</TableTd>
                 <TableTd>{o.industry ?? "—"}</TableTd>
                 <TableTd>{o.size ?? "—"}</TableTd>
+                <TableTd>
+                  <Badge variant={o.status === "active" ? "success" : "neutral"}>
+                    {o.status === "active" ? "Active" : "Archived"}
+                  </Badge>
+                </TableTd>
+                <TableTd>
+                  <ArchiveToggleButton org={o} onDone={invalidate} />
+                </TableTd>
               </TableRow>
             ))}
           </TableBody>
@@ -91,6 +101,29 @@ export default function CompaniesPage() {
         <DrawerContent>{selectedOrg && <CompanyDetail org={selectedOrg} />}</DrawerContent>
       </Drawer>
     </div>
+  );
+}
+
+function ArchiveToggleButton({ org, onDone }: { org: Organization; onDone: () => void }) {
+  const active = org.status === "active";
+  const mutation = useMutation({
+    mutationFn: () =>
+      active ? platformApi.archiveClientOrg(org.id) : platformApi.reactivateClientOrg(org.id),
+    onSuccess: onDone,
+  });
+
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      loading={mutation.isPending}
+      onClick={(e) => {
+        e.stopPropagation();
+        mutation.mutate();
+      }}
+    >
+      {active ? "Archive" : "Reactivate"}
+    </Button>
   );
 }
 
@@ -188,13 +221,7 @@ function CompanyDetail({ org }: { org: Organization }) {
       <div className="mt-3 flex flex-col gap-1.5">
         {users.length === 0 && <p className="text-xs text-text-tertiary">No one added yet.</p>}
         {users.map((u) => (
-          <div key={u.id} className="flex items-center justify-between rounded-md border border-border px-2.5 py-2">
-            <div>
-              <p className="text-sm font-medium text-text-primary">{u.name}</p>
-              <p className="text-xs text-text-tertiary">{u.email}</p>
-            </div>
-            <Badge variant="neutral">{u.status}</Badge>
-          </div>
+          <EmployeeRow key={u.id} user={u} onDone={invalidate} />
         ))}
       </div>
 
@@ -210,6 +237,30 @@ function CompanyDetail({ org }: { org: Organization }) {
         }}
       />
     </>
+  );
+}
+
+function EmployeeRow({ user, onDone }: { user: platformApi.ClientUser; onDone: () => void }) {
+  const active = user.status === "active";
+  const mutation = useMutation({
+    mutationFn: () =>
+      active ? platformApi.deactivateClientUser(user.id) : platformApi.reactivateClientUser(user.id),
+    onSuccess: onDone,
+  });
+
+  return (
+    <div className="flex items-center justify-between rounded-md border border-border px-2.5 py-2">
+      <div>
+        <p className="text-sm font-medium text-text-primary">{user.name}</p>
+        <p className="text-xs text-text-tertiary">{user.email}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge variant={active ? "neutral" : "danger"}>{user.status}</Badge>
+        <Button size="sm" variant="ghost" loading={mutation.isPending} onClick={() => mutation.mutate()}>
+          {active ? "Deactivate" : "Reactivate"}
+        </Button>
+      </div>
+    </div>
   );
 }
 

@@ -23,7 +23,7 @@ type BackendSession = {
     status: "active" | "deactivated";
     mustChangePassword: boolean;
   };
-  org: Record<string, unknown> & { id: string; name: string; isPlatform: boolean };
+  org: Record<string, unknown> & { id: string; name: string; isPlatform: boolean; status: "active" | "archived" };
   roles: { id: string; name: string; isSystemRole: boolean; permissions: { resource: string; action: string }[] }[];
   permissions: { resource: string; action: string }[];
 };

@@ -144,19 +144,15 @@ export async function listMyPaths(): Promise<PathDetail[]> {
   }
 }
 
+/** Every published path's title/course count, regardless of access grant —
+ * NOT a self-service "browse and join" list (that no longer exists; access
+ * is admin-granted, see `platform.ts`'s `grantPathAccess`). Used to resolve
+ * a Learning Plan's member-path names and to power the Path Access admin
+ * picker. */
 export async function listPathCatalog(): Promise<PathSummary[]> {
   try {
     const paths = await trpcClient.paths.catalog.query();
     return paths.map(toPathSummary);
-  } catch (err) {
-    throw toApiError(err);
-  }
-}
-
-export async function enrollInPath(pathId: string): Promise<PathEnrollment> {
-  try {
-    const e = await trpcClient.paths.enroll.mutate({ pathId });
-    return toDateStrings(nullsToUndefined(e), ["enrolledAt", "completedAt"]) as unknown as PathEnrollment;
   } catch (err) {
     throw toApiError(err);
   }

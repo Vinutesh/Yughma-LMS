@@ -14,6 +14,7 @@ export const MOCK_ORG: Organization = {
   id: "org_acme",
   name: "Acme Corp",
   isPlatform: false,
+  status: "active",
   industry: "Technology",
   size: "51–200",
   // Comfortably mid-trial by default, so neither the ending-soon banner nor the

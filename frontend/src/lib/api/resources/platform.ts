@@ -119,3 +119,101 @@ export async function listCourseGrants(courseId: string): Promise<CourseGrant[]>
     throw toApiError(err);
   }
 }
+
+export async function grantPathAccess(userId: string, pathId: string): Promise<void> {
+  try {
+    await trpcClient.platform.grantPathAccess.mutate({ userId, pathId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export async function revokePathAccess(userId: string, pathId: string): Promise<void> {
+  try {
+    await trpcClient.platform.revokePathAccess.mutate({ userId, pathId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export interface PathGrant {
+  enrollmentId: string;
+  enrolledAt: string;
+  completedAt?: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  orgId: string;
+  orgName: string;
+}
+
+export async function listPathGrants(pathId: string): Promise<PathGrant[]> {
+  try {
+    const grants = await trpcClient.platform.listPathGrants.query({ pathId });
+    return grants.map((g) => toDateStrings(nullsToUndefined(g), ["enrolledAt", "completedAt"])) as unknown as PathGrant[];
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** "Remove a company" — archives it (blocks every employee's login,
+ * see auth/session.ts) rather than a hard delete. Reversible via
+ * `reactivateClientOrg`. */
+export async function archiveClientOrg(orgId: string): Promise<void> {
+  try {
+    await trpcClient.platform.archiveClientOrg.mutate({ orgId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export async function reactivateClientOrg(orgId: string): Promise<void> {
+  try {
+    await trpcClient.platform.reactivateClientOrg.mutate({ orgId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** "Remove an employee" — the cross-org counterpart to the per-org
+ * `usersApi.deactivateUser`, reachable for a platform admin managing any
+ * client company's people (not just their own org). */
+export async function deactivateClientUser(userId: string): Promise<void> {
+  try {
+    await trpcClient.platform.deactivateClientUser.mutate({ userId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export async function reactivateClientUser(userId: string): Promise<void> {
+  try {
+    await trpcClient.platform.reactivateClientUser.mutate({ userId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export interface EmployeeDirectoryRow {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  orgId: string;
+  orgName: string;
+  orgStatus: string;
+  roleNames: string[];
+  createdAt: string;
+}
+
+/** Every employee at every client company, in one flat list — the
+ * cross-org directory `listClientUsers` doesn't provide (that one reads a
+ * single company at a time). */
+export async function listAllEmployees(): Promise<EmployeeDirectoryRow[]> {
+  try {
+    const rows = await trpcClient.platform.listAllEmployees.query();
+    return rows.map((r) => toDateStrings(nullsToUndefined(r), ["createdAt"])) as unknown as EmployeeDirectoryRow[];
+  } catch (err) {
+    throw toApiError(err);
+  }
+}

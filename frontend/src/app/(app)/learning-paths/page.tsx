@@ -3,23 +3,25 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Check, Circle, Lock, Route, Search } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { SearchInput } from "@/components/patterns/SearchInput";
 import { useSessionStore } from "@/state/sessionStore";
 import * as pathsApi from "@/lib/api/resources/paths";
-import { ApiError } from "@/lib/api/errors";
 
+/**
+ * No more Catalog/self-service join — access to a Learning Path is a grant
+ * a platform admin creates (see `platform.ts`'s `grantPathAccess`), same
+ * model Course access already uses. This only ever shows paths the learner
+ * has actually been granted.
+ */
 export default function LearningPathsPage() {
   // `?open=<pathId>` lets other screens (the Learning Plans catalog) deep
-  // link straight into a specific path's detail view — that view (join
-  // button, ordered steps, progress) only exists here, so a plan's path
-  // list opens it this way rather than duplicating it.
+  // link straight into a specific path's detail view.
   const searchParams = useSearchParams();
   const [openPathId, setOpenPathId] = useState<string | null>(searchParams.get("open"));
   const [search, setSearch] = useState("");
@@ -43,18 +45,7 @@ export default function LearningPathsPage() {
         className="mb-4"
       />
 
-      <Tabs defaultValue="mine">
-        <TabsList>
-          <TabsTrigger value="mine">My Paths</TabsTrigger>
-          <TabsTrigger value="catalog">Catalog</TabsTrigger>
-        </TabsList>
-        <TabsContent value="mine">
-          <MyPaths onOpen={setOpenPathId} search={search} />
-        </TabsContent>
-        <TabsContent value="catalog">
-          <PathCatalog onOpen={setOpenPathId} search={search} />
-        </TabsContent>
-      </Tabs>
+      <MyPaths onOpen={setOpenPathId} search={search} />
     </div>
   );
 }
@@ -79,8 +70,8 @@ function MyPaths({ onOpen, search }: { onOpen: (id: string) => void; search: str
     return (
       <EmptyState
         icon={Route}
-        title="You haven't joined a path yet"
-        description="Browse the catalog to find one."
+        title="No paths assigned yet"
+        description="Paths show up here once your organization grants you access."
       />
     );
   }
@@ -122,77 +113,6 @@ function MyPaths({ onOpen, search }: { onOpen: (id: string) => void; search: str
         </Card>
       ))}
     </div>
-  );
-}
-
-function PathCatalog({ onOpen, search }: { onOpen: (id: string) => void; search: string }) {
-  const session = useSessionStore((s) => s.session);
-  const qc = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-
-  const { data: allPaths = [], isLoading } = useQuery({
-    queryKey: ["pathCatalog", session?.org.id, session?.user.id],
-    queryFn: () => pathsApi.listPathCatalog(),
-    enabled: !!session,
-  });
-
-  const paths = useMemo(
-    () => allPaths.filter((p) => p.title.toLowerCase().includes(search.toLowerCase())),
-    [allPaths, search],
-  );
-
-  const join = useMutation({
-    mutationFn: (pathId: string) => pathsApi.enrollInPath(pathId),
-    onSuccess: (_result, pathId) => {
-      setError(null);
-      qc.invalidateQueries({ queryKey: ["myPaths"] });
-      qc.invalidateQueries({ queryKey: ["pathCatalog"] });
-      onOpen(pathId);
-    },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong."),
-  });
-
-  if (isLoading) return <p className="text-sm text-text-tertiary">Loading catalog...</p>;
-
-  if (allPaths.length === 0) {
-    return (
-      <EmptyState
-        icon={Check}
-        title="Nothing new right now"
-        description="You've joined every published path available to you."
-      />
-    );
-  }
-
-  if (paths.length === 0) {
-    return <EmptyState icon={Search} title="No matches" description="Try a different search." />;
-  }
-
-  return (
-    <>
-      {error && (
-        <p className="mb-3 rounded-md bg-danger-bg p-2.5 text-xs font-medium text-danger">{error}</p>
-      )}
-      <div className="flex flex-col gap-2.5">
-        {paths.map((path) => (
-          <Card key={path.id} className="flex items-center justify-between gap-4 p-4">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-text-primary">{path.title}</p>
-              <p className="text-xs text-text-tertiary">
-                {path.description || `${path.courseCount} courses`}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              loading={join.isPending && join.variables === path.id}
-              onClick={() => join.mutate(path.id)}
-            >
-              Join path
-            </Button>
-          </Card>
-        ))}
-      </div>
-    </>
   );
 }
 

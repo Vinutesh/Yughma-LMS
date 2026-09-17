@@ -1,5 +1,6 @@
 import { trpcClient } from "@/lib/trpc/client";
 import { toApiError } from "@/lib/trpc/mapError";
+import { toDateStrings } from "@/lib/api/serialization";
 
 /**
  * Real backend-backed dashboard resource client. The `orgId`/`managerUserId`
@@ -79,6 +80,40 @@ export interface OrgAdminDashboard {
 export async function getOrgAdminDashboard(): Promise<OrgAdminDashboard> {
   try {
     return await trpcClient.dashboard.orgAdmin.query();
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export interface ContinueLearningRow {
+  courseId: string;
+  title: string;
+  progressPercent: number;
+}
+
+export interface LearnerActivityRow {
+  at: string;
+  text: string;
+}
+
+export interface LearnerDashboard {
+  continueLearning: ContinueLearningRow[];
+  stats: {
+    coursesInProgress: number;
+    completedThisMonth: number;
+    certificatesEarned: number;
+  };
+  recentActivity: LearnerActivityRow[];
+}
+
+/** The Home page's data — every field real, nothing hardcoded. */
+export async function getLearnerDashboard(): Promise<LearnerDashboard> {
+  try {
+    const data = await trpcClient.dashboard.learner.query();
+    return {
+      ...data,
+      recentActivity: data.recentActivity.map((a) => toDateStrings(a, ["at"])) as unknown as LearnerActivityRow[],
+    };
   } catch (err) {
     throw toApiError(err);
   }

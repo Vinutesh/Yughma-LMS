@@ -33,7 +33,7 @@ export async function resolveSession(token: string | undefined): Promise<Session
 
   const authSession = await rawPrisma.authSession.findUnique({
     where: { token },
-    include: { user: { include: { roles: true } } },
+    include: { user: { include: { roles: true, org: true } } },
   });
   if (!authSession) return null;
 
@@ -45,6 +45,10 @@ export async function resolveSession(token: string | undefined): Promise<Session
   }
 
   if (authSession.user.status !== "active") return null;
+  // Re-checked on every request, not just at login — archiving a company
+  // mid-session must cut off its already-logged-in users immediately, not
+  // just block their next login attempt.
+  if (authSession.user.org.status !== "active") return null;
 
   return {
     userId: authSession.userId,

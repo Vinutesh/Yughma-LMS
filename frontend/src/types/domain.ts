@@ -38,6 +38,10 @@ export interface Organization {
    * server-side (`requirePlatformAdmin` in the backend), this is a UI
    * convenience only. */
   isPlatform: boolean;
+  /** Archived blocks login for every one of this org's users (see
+   * `auth/session.ts`) without touching their real history — reversible via
+   * `platform.reactivateClientOrg`. Never true for the platform org itself. */
+  status: "active" | "archived";
   industry?: string;
   size?: string;
   logoUrl?: string;

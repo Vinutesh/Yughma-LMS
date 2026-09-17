@@ -1,4 +1,4 @@
-import { router, requirePermission } from "../trpc/trpc.js";
+import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
 
 /**
  * Mirrors `frontend/src/lib/api/resources/dashboard.ts`. One dashboard
@@ -143,5 +143,69 @@ export const dashboardRouter = router({
     }
 
     return { teamSize: team.length, completionPercent, overdue: overdue.sort((a, b) => b.daysOverdue - a.daysOverdue) };
+  }),
+
+  /**
+   * The learner's own Home page — every field here is real, queried data,
+   * not placeholder content. `protectedProcedure`, not `requirePermission`:
+   * a plain Learner holds zero permissions (see the seed script) and this
+   * is the one screen every account, regardless of role, lands on first.
+   * Reads via `ctx.rawDb` for the same reason `paths.ts`/`courses.ts` do —
+   * `Course`/`Enrollment`/`Certificate` only ever live in the platform org
+   * (or reference it), so a client-org learner's own `ctx.db` would come
+   * back empty.
+   */
+  learner: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.userId;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const enrollments = await ctx.rawDb.enrollment.findMany({
+      where: { userId, status: { not: "requested" } },
+      orderBy: { enrolledAt: "desc" },
+    });
+    const courseIds = enrollments.map((e) => e.courseId);
+    const courses = await ctx.rawDb.course.findMany({ where: { id: { in: courseIds } } });
+    const courseById = new Map(courses.map((c) => [c.id, c]));
+    const lessonCounts = await ctx.rawDb.lesson.groupBy({ by: ["courseId"], where: { courseId: { in: courseIds } }, _count: true });
+    const lessonCountByCourse = new Map(lessonCounts.map((l) => [l.courseId, l._count]));
+
+    const inProgress = enrollments.filter((e) => e.status !== "completed");
+    const continueLearning = inProgress.slice(0, 3).flatMap((e) => {
+      const course = courseById.get(e.courseId);
+      if (!course) return [];
+      const total = lessonCountByCourse.get(e.courseId) ?? 0;
+      const progressPercent = total === 0 ? 0 : Math.round((e.completedLessonIds.length / total) * 100);
+      return [{ courseId: course.id, title: course.title, progressPercent }];
+    });
+
+    const completedThisMonth = enrollments.filter(
+      (e) => e.status === "completed" && e.completedAt && e.completedAt >= monthStart,
+    ).length;
+
+    const certificates = await ctx.rawDb.certificate.findMany({ where: { userId, revoked: false } });
+
+    type Activity = { at: Date; text: string };
+    const activity: Activity[] = [];
+    for (const e of enrollments) {
+      const course = courseById.get(e.courseId);
+      if (!course) continue;
+      if (e.completedAt) activity.push({ at: e.completedAt, text: `You completed "${course.title}"` });
+      activity.push({ at: e.enrolledAt, text: `You were enrolled in "${course.title}"` });
+    }
+    for (const c of certificates) {
+      activity.push({ at: c.issuedAt, text: `You earned a certificate: "${c.sourceTitle}"` });
+    }
+    activity.sort((a, b) => b.at.getTime() - a.at.getTime());
+
+    return {
+      continueLearning,
+      stats: {
+        coursesInProgress: inProgress.length,
+        completedThisMonth,
+        certificatesEarned: certificates.length,
+      },
+      recentActivity: activity.slice(0, 5).map((a) => ({ at: a.at, text: a.text })),
+    };
   }),
 });

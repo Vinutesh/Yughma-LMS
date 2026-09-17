@@ -10,8 +10,10 @@ import { sendAccessGrantedEmail, sendWelcomeEmail } from "../email/resend.js";
  * separate authority tier from every other router's `requirePermission`
  * (see that guard's own doc comment in `trpc.ts`). This is the ONLY place
  * in the backend that creates a client company's account, creates an
- * individual learner's account, or grants/revokes their access to a
- * course — none of that is self-service anywhere else anymore.
+ * individual learner's account, grants/revokes their access to a course or
+ * learning path, archives/reactivates a company or one of its employees, or
+ * reads across every client org at once (`listAllEmployees`) — none of that
+ * is self-service or org-scoped anywhere else.
  *
  * Every client-org role template here deliberately excludes any
  * `courses`/`assignments` permission — companies consume content
@@ -208,6 +210,141 @@ export const platformRouter = router({
       userEmail: e.user.email,
       orgId: e.user.orgId,
       orgName: e.user.org.name,
+    }));
+  }),
+
+  /** Same shape as `grantCourseAccess`/`revokeCourseAccess`/
+   * `listCourseGrants` above, one level up — a `LearningPath` is granted as
+   * a whole unit (`PathEnrollment`), never self-service (see `paths.ts`'s
+   * `catalog`, which is read-only now). */
+  grantPathAccess: requirePlatformAdmin
+    .input(z.object({ userId: z.string(), pathId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const path = await ctx.rawDb.learningPath.findFirst({ where: { id: input.pathId, orgId: ctx.session.orgId } });
+      if (!path) throw new TRPCError({ code: "NOT_FOUND", message: "Learning path not found." });
+
+      const user = await ctx.rawDb.user.findUnique({ where: { id: input.userId } });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+
+      const enrollment = await ctx.rawDb.pathEnrollment.upsert({
+        where: { pathId_userId: { pathId: input.pathId, userId: input.userId } },
+        create: { pathId: input.pathId, userId: input.userId },
+        update: {},
+      });
+
+      await ctx.rawDb.notificationItem.create({
+        data: {
+          orgId: user.orgId,
+          userId: user.id,
+          category: "course_updates",
+          title: `You've been granted access to "${path.title}"`,
+          targetUrl: `/learning-paths?open=${path.id}`,
+        },
+      });
+      await sendAccessGrantedEmail(user.email, user.name, path.title);
+
+      return enrollment;
+    }),
+
+  revokePathAccess: requirePlatformAdmin
+    .input(z.object({ userId: z.string(), pathId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const path = await ctx.rawDb.learningPath.findFirst({ where: { id: input.pathId, orgId: ctx.session.orgId } });
+      if (!path) throw new TRPCError({ code: "NOT_FOUND", message: "Learning path not found." });
+
+      await ctx.rawDb.pathEnrollment.deleteMany({ where: { pathId: input.pathId, userId: input.userId } });
+      return { ok: true };
+    }),
+
+  /** Everyone currently granted access to one path, across every client
+   * org. */
+  listPathGrants: requirePlatformAdmin.input(z.object({ pathId: z.string() })).query(async ({ ctx, input }) => {
+    const path = await ctx.rawDb.learningPath.findFirst({ where: { id: input.pathId, orgId: ctx.session.orgId } });
+    if (!path) throw new TRPCError({ code: "NOT_FOUND", message: "Learning path not found." });
+
+    const enrollments = await ctx.rawDb.pathEnrollment.findMany({
+      where: { pathId: input.pathId },
+      include: { user: { include: { org: true } } },
+      orderBy: { enrolledAt: "desc" },
+    });
+    return enrollments.map((e) => ({
+      enrollmentId: e.id,
+      enrolledAt: e.enrolledAt,
+      completedAt: e.completedAt,
+      userId: e.user.id,
+      userName: e.user.name,
+      userEmail: e.user.email,
+      orgId: e.user.orgId,
+      orgName: e.user.org.name,
+    }));
+  }),
+
+  /**
+   * "Remove a company" — archive, not a hard delete: blocks login for every
+   * one of its users immediately (`auth/session.ts` re-checks org status on
+   * every request, not just at login) while leaving every real record —
+   * enrollments, certificates, submissions — untouched and reversible via
+   * `reactivateClientOrg`. The platform org itself can never be archived;
+   * `listClientOrgs`'s own `isPlatform: false` filter already keeps it off
+   * every UI picker, but this guards the mutation directly too, since nothing
+   * else stops a crafted request from passing its id.
+   */
+  archiveClientOrg: requirePlatformAdmin.input(z.object({ orgId: z.string() })).mutation(async ({ ctx, input }) => {
+    const org = await ctx.rawDb.organization.findUnique({ where: { id: input.orgId } });
+    if (!org || org.isPlatform) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+    return ctx.rawDb.organization.update({ where: { id: input.orgId }, data: { status: "archived" } });
+  }),
+
+  reactivateClientOrg: requirePlatformAdmin.input(z.object({ orgId: z.string() })).mutation(async ({ ctx, input }) => {
+    const org = await ctx.rawDb.organization.findUnique({ where: { id: input.orgId } });
+    if (!org || org.isPlatform) throw new TRPCError({ code: "NOT_FOUND", message: "Company not found." });
+    return ctx.rawDb.organization.update({ where: { id: input.orgId }, data: { status: "active" } });
+  }),
+
+  /**
+   * "Remove an employee" — the cross-org counterpart to `users.deactivate`/
+   * `users.reactivate`, which only ever operate on the caller's own
+   * tenant-scoped org (never reachable for a platform admin managing a
+   * *client* org's people, since the platform admin's own `ctx.db` is
+   * scoped to the platform org). Same archive-not-delete reasoning as
+   * `archiveClientOrg` — blocks login, keeps every real record.
+   */
+  deactivateClientUser: requirePlatformAdmin.input(z.object({ userId: z.string() })).mutation(async ({ ctx, input }) => {
+    const user = await ctx.rawDb.user.findUnique({ where: { id: input.userId }, include: { org: true } });
+    if (!user || user.org.isPlatform) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+    return ctx.rawDb.user.update({ where: { id: input.userId }, data: { status: "deactivated" } });
+  }),
+
+  reactivateClientUser: requirePlatformAdmin.input(z.object({ userId: z.string() })).mutation(async ({ ctx, input }) => {
+    const user = await ctx.rawDb.user.findUnique({ where: { id: input.userId }, include: { org: true } });
+    if (!user || user.org.isPlatform) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+    return ctx.rawDb.user.update({ where: { id: input.userId }, data: { status: "active" } });
+  }),
+
+  /**
+   * Every employee at every client company in one query — the directory a
+   * platform admin uses to find someone without first knowing which
+   * company they're at, and to see who each company's managers/admins are.
+   * `listClientUsers` above is the per-company equivalent this doesn't
+   * replace (the Companies page still drills into one org at a time); this
+   * is the flat, cross-org view.
+   */
+  listAllEmployees: requirePlatformAdmin.query(async ({ ctx }) => {
+    const users = await ctx.rawDb.user.findMany({
+      where: { org: { isPlatform: false } },
+      include: { org: true, roles: { include: { role: true } } },
+      orderBy: [{ org: { name: "asc" } }, { name: "asc" }],
+    });
+    return users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      status: u.status,
+      orgId: u.orgId,
+      orgName: u.org.name,
+      orgStatus: u.org.status,
+      roleNames: u.roles.map((r) => r.role.name),
+      createdAt: u.createdAt,
     }));
   }),
 });

@@ -14,7 +14,7 @@ type RawDb = typeof rawPrisma;
  * `setCourses`/`publish`/`delete`) is unreachable by any client-org account
  * anyway (`courses:edit` is never granted outside the platform org), so
  * those stay on `ctx.db`. Every learner-facing read (`get`/`listMine`/
- * `catalog`/`enroll`) is reachable by anyone, so those read `LearningPath`/
+ * `catalog`) is reachable by anyone, so those read `LearningPath`/
  * `Course` via `ctx.rawDb` instead — the caller's own `ctx.db` would come
  * back empty for a client-org learner. `PathCourse`/`PathEnrollment` carry
  * no `orgId` of their own (see tenantScope.ts) and are read the same way
@@ -247,29 +247,18 @@ export const pathsRouter = router({
     return results;
   }),
 
-  /** Published paths the learner hasn't joined yet. */
+  /**
+   * Every published path's title/course count, regardless of who's been
+   * granted access to it — used to resolve a Learning Plan's member-path
+   * names for display (see `learningPlans` router) and to power the "Path
+   * Access" admin picker. NOT a self-service join surface — access is a
+   * grant `platform.grantPathAccess` creates, mirroring how Course access
+   * works; there is deliberately no `enroll` mutation here anymore, same
+   * reasoning as `courses.ts`'s own removed self-enroll.
+   */
   catalog: protectedProcedure.query(async ({ ctx }) => {
-    const joined = new Set(
-      (await ctx.rawDb.pathEnrollment.findMany({ where: { userId: ctx.session.userId } })).map((e) => e.pathId),
-    );
     const paths = await ctx.rawDb.learningPath.findMany({ where: { status: "published" } });
-    const available = paths.filter((p) => !joined.has(p.id));
-    return Promise.all(available.map(async (p) => ({ ...p, ...(await summarize(ctx.rawDb, p)) })));
-  }),
-
-  enroll: protectedProcedure.input(z.object({ pathId: z.string() })).mutation(async ({ ctx, input }) => {
-    const path = await ctx.rawDb.learningPath.findUnique({ where: { id: input.pathId } });
-    if (!path) throw new TRPCError({ code: "NOT_FOUND", message: "Learning path not found." });
-    if (path.status !== "published") {
-      throw new TRPCError({ code: "FORBIDDEN", message: "This path isn't published yet." });
-    }
-
-    const existing = await ctx.rawDb.pathEnrollment.findUnique({
-      where: { pathId_userId: { pathId: input.pathId, userId: ctx.session.userId } },
-    });
-    if (existing) return existing;
-
-    return ctx.rawDb.pathEnrollment.create({ data: { pathId: input.pathId, userId: ctx.session.userId } });
+    return Promise.all(paths.map(async (p) => ({ ...p, ...(await summarize(ctx.rawDb, p)) })));
   }),
 });
 

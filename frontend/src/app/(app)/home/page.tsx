@@ -1,39 +1,34 @@
 "use client";
 
-import { Award, BookOpen, CheckCircle2, Flame, GraduationCap, PlayCircle, UserPlus } from "lucide-react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { Award, BookOpen, CheckCircle2, GraduationCap, PlayCircle, UserPlus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { StaggerContainer, StaggerItem } from "@/components/motion/Stagger";
+import { EmptyState } from "@/components/patterns/EmptyState";
 import { useSessionStore } from "@/state/sessionStore";
 import { gradientForSeed } from "@/lib/utils";
+import * as dashboardApi from "@/lib/api/resources/dashboard";
 
-const CONTINUE_LEARNING = [
-  { title: "Sales Fundamentals" },
-  { title: "Onboarding Compliance 2026" },
-  { title: "Data Fundamentals" },
-];
+const STAT_TONE = "bg-accent-soft text-accent-soft-fg";
+const GOLD_TONE = "bg-gold-bg text-gold-bg-fg";
 
-const STATS = [
-  { label: "Courses in progress", value: "2", icon: BookOpen, tone: "accent" as const },
-  { label: "Completed this month", value: "1", icon: CheckCircle2, tone: "success" as const },
-  { label: "Certificates earned", value: "3", icon: Award, tone: "gold" as const },
-  { label: "Streak", value: "5 days", icon: Flame, tone: "warning" as const },
-];
-
-const TONE_CLASSES = {
-  accent: "bg-accent-soft text-accent-soft-fg",
-  success: "bg-success-bg text-success",
-  gold: "bg-gold-bg text-gold-bg-fg",
-  warning: "bg-warning-bg text-warning",
-};
-
-const ACTIVITY = [
-  { text: "You completed “The discovery call”", icon: CheckCircle2 },
-  { text: "Priya graded your submission: “Week 3 Assignment”", icon: GraduationCap },
-  { text: "You enrolled in “Data Fundamentals”", icon: UserPlus },
-];
+function iconForActivity(text: string) {
+  if (text.startsWith("You completed")) return CheckCircle2;
+  if (text.startsWith("You earned a certificate")) return Award;
+  if (text.startsWith("You were enrolled")) return UserPlus;
+  return GraduationCap;
+}
 
 export default function HomePage() {
-  const name = useSessionStore((s) => s.session?.user.name.split(" ")[0]);
+  const session = useSessionStore((s) => s.session);
+  const name = session?.user.name.split(" ")[0];
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["learnerDashboard", session?.user.id],
+    queryFn: () => dashboardApi.getLearnerDashboard(),
+    enabled: !!session,
+  });
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 p-8">
@@ -54,55 +49,106 @@ export default function HomePage() {
         </p>
       </div>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Continue Learning</h2>
-        <StaggerContainer className="flex flex-wrap gap-4">
-          {CONTINUE_LEARNING.map((c) => (
-            <StaggerItem key={c.title}>
-              <Card interactive className="flex w-55 cursor-pointer flex-col gap-3 p-3">
-                <div
-                  className="flex h-20 items-center justify-center rounded-md"
-                  style={{ backgroundImage: gradientForSeed(c.title) }}
-                >
-                  <PlayCircle className="size-7 text-white/90" aria-hidden />
-                </div>
-                <span className="text-xs font-medium text-text-secondary">{c.title}</span>
-              </Card>
-            </StaggerItem>
-          ))}
-        </StaggerContainer>
-      </section>
+      {isLoading ? (
+        <p className="text-sm text-text-tertiary">Loading your dashboard...</p>
+      ) : !data ? null : (
+        <>
+          <section className="flex flex-col gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Continue Learning</h2>
+            {data.continueLearning.length === 0 ? (
+              <EmptyState
+                icon={BookOpen}
+                title="Nothing in progress"
+                description="Courses you're enrolled in will show up here."
+              />
+            ) : (
+              <StaggerContainer className="flex flex-wrap gap-4">
+                {data.continueLearning.map((c) => (
+                  <StaggerItem key={c.courseId}>
+                    <Link href={`/courses/${c.courseId}`}>
+                      <Card interactive className="flex w-55 cursor-pointer flex-col gap-3 p-3">
+                        <div
+                          className="flex h-20 items-center justify-center rounded-md"
+                          style={{ backgroundImage: gradientForSeed(c.courseId) }}
+                        >
+                          <PlayCircle className="size-7 text-white/90" aria-hidden />
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-text-secondary">{c.title}</span>
+                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-alt">
+                            <div
+                              className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out"
+                              style={{ width: `${c.progressPercent}%` }}
+                            />
+                          </div>
+                        </div>
+                      </Card>
+                    </Link>
+                  </StaggerItem>
+                ))}
+              </StaggerContainer>
+            )}
+          </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">This Week</h2>
-        <StaggerContainer className="flex flex-wrap gap-4">
-          {STATS.map((s) => (
-            <StaggerItem key={s.label}>
-              <Card className="flex w-51 items-center gap-3 p-3.5">
-                <div className={`flex size-9 shrink-0 items-center justify-center rounded-full ${TONE_CLASSES[s.tone]}`}>
-                  <s.icon className="size-4" aria-hidden />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-text-primary">{s.value}</p>
-                  <p className="text-[11px] text-text-tertiary">{s.label}</p>
-                </div>
-              </Card>
-            </StaggerItem>
-          ))}
-        </StaggerContainer>
-      </section>
+          <section className="flex flex-col gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">This Week</h2>
+            <StaggerContainer className="flex flex-wrap gap-4">
+              <StaggerItem>
+                <Card className="flex w-51 items-center gap-3 p-3.5">
+                  <div className={`flex size-9 shrink-0 items-center justify-center rounded-full ${STAT_TONE}`}>
+                    <BookOpen className="size-4" aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-text-primary">{data.stats.coursesInProgress}</p>
+                    <p className="text-[11px] text-text-tertiary">Courses in progress</p>
+                  </div>
+                </Card>
+              </StaggerItem>
+              <StaggerItem>
+                <Card className="flex w-51 items-center gap-3 p-3.5">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-bg text-success">
+                    <CheckCircle2 className="size-4" aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-text-primary">{data.stats.completedThisMonth}</p>
+                    <p className="text-[11px] text-text-tertiary">Completed this month</p>
+                  </div>
+                </Card>
+              </StaggerItem>
+              <StaggerItem>
+                <Card className="flex w-51 items-center gap-3 p-3.5">
+                  <div className={`flex size-9 shrink-0 items-center justify-center rounded-full ${GOLD_TONE}`}>
+                    <Award className="size-4" aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-text-primary">{data.stats.certificatesEarned}</p>
+                    <p className="text-[11px] text-text-tertiary">Certificates earned</p>
+                  </div>
+                </Card>
+              </StaggerItem>
+            </StaggerContainer>
+          </section>
 
-      <section className="flex flex-col gap-1">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Recent Activity</h2>
-        {ACTIVITY.map((a) => (
-          <div key={a.text} className="flex items-center gap-3 py-1.5 text-sm text-text-secondary">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-alt text-text-tertiary">
-              <a.icon className="size-3.5" aria-hidden />
-            </span>
-            {a.text}
-          </div>
-        ))}
-      </section>
+          <section className="flex flex-col gap-1">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Recent Activity</h2>
+            {data.recentActivity.length === 0 ? (
+              <p className="text-sm text-text-tertiary">Nothing yet — get started on a course.</p>
+            ) : (
+              data.recentActivity.map((a, i) => {
+                const Icon = iconForActivity(a.text);
+                return (
+                  <div key={i} className="flex items-center gap-3 py-1.5 text-sm text-text-secondary">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-alt text-text-tertiary">
+                      <Icon className="size-3.5" aria-hidden />
+                    </span>
+                    {a.text}
+                  </div>
+                );
+              })
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

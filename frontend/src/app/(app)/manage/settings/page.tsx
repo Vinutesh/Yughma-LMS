@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
@@ -613,10 +613,19 @@ function SeatsDialog({
 
 function BrandingTab() {
   const org = useSessionStore((s) => s.session?.org);
+  const patchSessionOrg = useSessionStore((s) => s.patchSessionOrg);
   const canManage = usePermission("settings", "manage");
   const qc = useQueryClient();
   const [accentColor, setAccentColor] = useState(org?.accentColor ?? "#4A4AC4");
   const [saved, setSaved] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: logoUrl } = useQuery({
+    queryKey: ["orgLogoUrl", org?.id],
+    queryFn: () => orgsApi.getOrgLogoUrl(),
+    enabled: !!org?.logoUrl,
+  });
 
   const save = useMutation({
     mutationFn: () => orgsApi.updateOrgBranding({ accentColor }),
@@ -627,6 +636,16 @@ function BrandingTab() {
     },
   });
 
+  const uploadLogo = useMutation({
+    mutationFn: (file: File) => orgsApi.uploadOrgLogo(file),
+    onSuccess: () => {
+      setLogoError(null);
+      patchSessionOrg({ logoUrl: "set" }); // real value refetched below; this just flips TopBar's `enabled` gate on immediately
+      qc.invalidateQueries({ queryKey: ["orgLogoUrl"] });
+    },
+    onError: (err) => setLogoError(err instanceof Error ? err.message : "Upload failed. Try again."),
+  });
+
   if (!org) return null;
 
   return (
@@ -634,13 +653,36 @@ function BrandingTab() {
       <div className="flex flex-col gap-1.5">
         <Label>Logo</Label>
         <div className="flex items-center gap-3">
-          <div className="flex size-12 items-center justify-center rounded-md border border-dashed border-border text-[10px] text-text-tertiary">
-            {org.logoUrl ? "Set" : "None"}
+          <div className="flex size-12 items-center justify-center overflow-hidden rounded-md border border-dashed border-border text-[10px] text-text-tertiary">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="" className="size-full object-contain" />
+            ) : (
+              "None"
+            )}
           </div>
-          <Button size="sm" variant="secondary" disabled={!canManage} title="Uploads land with the real file backend">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!canManage || uploadLogo.isPending}
+            loading={uploadLogo.isPending}
+            onClick={() => fileInputRef.current?.click()}
+          >
             Upload
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) uploadLogo.mutate(file);
+            }}
+          />
         </div>
+        {logoError && <p className="text-xs font-medium text-danger">{logoError}</p>}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="accent-color">Accent color</Label>

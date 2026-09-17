@@ -71,6 +71,7 @@ export const MANAGE_NAV: NavSection[] = [
     heading: "Assess",
     items: [
       { label: "Course Access", href: "/manage/enrollments", requires: { resource: RESOURCES.courses, action: "edit" }, platformOnly: true },
+      { label: "Path Access", href: "/manage/path-access", requires: { resource: RESOURCES.courses, action: "edit" }, platformOnly: true },
       { label: "Assignments", href: "/manage/assignments", requires: { resource: RESOURCES.assignments, action: "edit" } },
       { label: "Certificates", href: "/manage/certificates", requires: { resource: RESOURCES.courses, action: "edit" } },
     ],
@@ -88,6 +89,7 @@ export const MANAGE_NAV: NavSection[] = [
     heading: "Organization",
     items: [
       { label: "Companies", href: "/manage/companies", platformOnly: true },
+      { label: "All Employees", href: "/manage/employees", platformOnly: true },
       { label: "Users", href: "/manage/users", requires: { resource: RESOURCES.users, action: "view" } },
       { label: "Roles", href: "/manage/roles", requires: { resource: RESOURCES.roles, action: "view" } },
       { label: "Audit Log", href: "/manage/audit-log", requires: { resource: RESOURCES.roles, action: "view" } },

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, requirePermission } from "../trpc/trpc.js";
+import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
+import { buildStorageKey, getUploadUrl, getDownloadUrl, isStorageConfigured } from "../storage/r2.js";
 
 /**
  * Mirrors `frontend/src/lib/api/resources/organizations.ts`. One contract
@@ -20,11 +21,48 @@ export const organizationsRouter = router({
       ctx.rawDb.organization.update({ where: { id: ctx.session.orgId }, data: input }),
     ),
 
+  /** `logoUrl` here is actually the R2 storage key `requestLogoUpload`
+   * handed out, not a real URL — see the schema field's own doc comment. */
   updateBranding: requirePermission("settings", "manage")
-    .input(z.object({ logoUrl: z.string().url().optional(), accentColor: z.string().optional() }))
+    .input(z.object({ logoUrl: z.string().optional(), accentColor: z.string().optional() }))
     .mutation(({ ctx, input }) =>
       ctx.rawDb.organization.update({ where: { id: ctx.session.orgId }, data: input }),
     ),
+
+  /** Step 1 of 2 for a logo change — mirrors `content.ts`'s `requestUpload`:
+   * a signed PUT URL the browser uploads directly to, never through this
+   * server. One fixed key per org ("logo" + extension), so re-uploading
+   * simply overwrites the previous file rather than accumulating orphaned
+   * ones. Step 2 is `updateBranding({ logoUrl: storageKey })` once the PUT
+   * succeeds. */
+  requestLogoUpload: requirePermission("settings", "manage")
+    .input(z.object({ filename: z.string().min(1), contentType: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      if (!isStorageConfigured()) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "File storage isn't configured yet." });
+      }
+      if (!input.contentType.startsWith("image/")) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Logo must be an image file." });
+      }
+      const storageKey = buildStorageKey(ctx.session.orgId, "logo", input.filename);
+      const uploadUrl = await getUploadUrl(storageKey, input.contentType);
+      return { uploadUrl, storageKey };
+    }),
+
+  /** The bucket is private, so the stored key (`Organization.logoUrl`) is
+   * never directly usable as an `<img src>` — every render mints a fresh
+   * signed URL here instead, same pattern `content.getLessonAssetUrl` uses
+   * for lesson videos. `protectedProcedure`, not `settings:view` — every
+   * employee at the org needs to see their own company's logo in the top
+   * bar, not just settings admins. */
+  getLogoUrl: protectedProcedure.query(async ({ ctx }) => {
+    const org = await ctx.rawDb.organization.findUnique({
+      where: { id: ctx.session.orgId },
+      select: { logoUrl: true },
+    });
+    if (!org?.logoUrl || !isStorageConfigured()) return { url: null };
+    return { url: await getDownloadUrl(org.logoUrl) };
+  }),
 
   updateSecurity: requirePermission("settings", "manage")
     .input(z.object({ sessionTimeoutHours: z.number().int().positive().optional(), requireSso: z.boolean().optional() }))

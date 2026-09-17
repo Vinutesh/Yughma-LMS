@@ -60,8 +60,12 @@ export async function login(
   // purposes, even though the DB constraint is `@@unique([orgId, email])` —
   // a real org-picker step for the same email in two orgs is out of scope
   // for this pass. See BACKEND_PLAN.md if that ever needs to change.
-  const user = await rawPrisma.user.findFirst({ where: { email: normalizedEmail } });
-  const valid = !!user && user.status === "active" && (await verifyPassword(user.passwordHash, password));
+  const user = await rawPrisma.user.findFirst({ where: { email: normalizedEmail }, include: { org: true } });
+  const valid =
+    !!user &&
+    user.status === "active" &&
+    user.org.status === "active" &&
+    (await verifyPassword(user.passwordHash, password));
 
   if (!valid) {
     const fails = (attempt?.failCount ?? 0) + 1;
