@@ -12,6 +12,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { useSessionStore } from "@/state/sessionStore";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { EmptyState } from "@/components/patterns/EmptyState";
+import { downloadJson } from "@/lib/utils";
 import * as platformApi from "@/lib/api/resources/platform";
 import type { Organization, Role } from "@/types/domain";
 
@@ -182,6 +183,7 @@ function CompanyDetail({ org }: { org: Organization }) {
   const qc = useQueryClient();
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [lastTempPassword, setLastTempPassword] = useState<{ email: string; password: string } | null>(null);
+  const [eraseTarget, setEraseTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ["clientUsers", org.id],
@@ -193,6 +195,14 @@ function CompanyDetail({ org }: { org: Organization }) {
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["clientUsers", org.id] });
+
+  const eraseUser = useMutation({
+    mutationFn: (userId: string) => platformApi.eraseClientUser(userId),
+    onSuccess: () => {
+      invalidate();
+      setEraseTarget(null);
+    },
+  });
 
   return (
     <>
@@ -221,7 +231,7 @@ function CompanyDetail({ org }: { org: Organization }) {
       <div className="mt-3 flex flex-col gap-1.5">
         {users.length === 0 && <p className="text-xs text-text-tertiary">No one added yet.</p>}
         {users.map((u) => (
-          <EmployeeRow key={u.id} user={u} onDone={invalidate} />
+          <EmployeeRow key={u.id} user={u} onDone={invalidate} onRequestErase={() => setEraseTarget({ id: u.id, name: u.name })} />
         ))}
       </div>
 
@@ -236,16 +246,54 @@ function CompanyDetail({ org }: { org: Organization }) {
           setLastTempPassword({ email, password: tempPassword });
         }}
       />
+
+      <Dialog open={!!eraseTarget} onOpenChange={(v) => !v && setEraseTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently erase {eraseTarget?.name}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            This permanently deletes their account and personal data (enrollments, certificates,
+            submissions, notifications) — unlike Deactivate, this cannot be undone. Use this only
+            to fulfill a data-erasure request.
+          </p>
+          {eraseUser.isError && <p className="text-sm text-danger">{(eraseUser.error as Error).message}</p>}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setEraseTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              loading={eraseUser.isPending}
+              onClick={() => eraseTarget && eraseUser.mutate(eraseTarget.id)}
+            >
+              Permanently erase
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
-function EmployeeRow({ user, onDone }: { user: platformApi.ClientUser; onDone: () => void }) {
+function EmployeeRow({
+  user,
+  onDone,
+  onRequestErase,
+}: {
+  user: platformApi.ClientUser;
+  onDone: () => void;
+  onRequestErase: () => void;
+}) {
   const active = user.status === "active";
   const mutation = useMutation({
     mutationFn: () =>
       active ? platformApi.deactivateClientUser(user.id) : platformApi.reactivateClientUser(user.id),
     onSuccess: onDone,
+  });
+  const exportData = useMutation({
+    mutationFn: () => platformApi.exportUserData(user.id),
+    onSuccess: (data) => downloadJson(`${user.name}-data-export.json`, data),
   });
 
   return (
@@ -256,9 +304,17 @@ function EmployeeRow({ user, onDone }: { user: platformApi.ClientUser; onDone: (
       </div>
       <div className="flex items-center gap-2">
         <Badge variant={active ? "neutral" : "danger"}>{user.status}</Badge>
+        <Button size="sm" variant="ghost" loading={exportData.isPending} onClick={() => exportData.mutate()}>
+          Export data
+        </Button>
         <Button size="sm" variant="ghost" loading={mutation.isPending} onClick={() => mutation.mutate()}>
           {active ? "Deactivate" : "Reactivate"}
         </Button>
+        {!active && (
+          <Button size="sm" variant="ghost" className="text-danger" onClick={onRequestErase}>
+            Erase
+          </Button>
+        )}
       </div>
     </div>
   );

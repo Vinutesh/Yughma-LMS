@@ -6,11 +6,13 @@ import { Search, Users } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { SearchInput } from "@/components/patterns/SearchInput";
 import { useSessionStore } from "@/state/sessionStore";
+import { downloadJson } from "@/lib/utils";
 import * as platformApi from "@/lib/api/resources/platform";
 
 /**
@@ -46,6 +48,23 @@ export default function AllEmployeesPage() {
     mutationFn: ({ userId, active }: { userId: string; active: boolean }) =>
       active ? platformApi.deactivateClientUser(userId) : platformApi.reactivateClientUser(userId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["allEmployees"] }),
+  });
+
+  const exportData = useMutation({
+    mutationFn: (userId: string) => platformApi.exportUserData(userId),
+    onSuccess: (data, userId) => {
+      const person = allEmployees.find((e) => e.id === userId);
+      downloadJson(`${person?.name ?? userId}-data-export.json`, data);
+    },
+  });
+
+  const [eraseTarget, setEraseTarget] = useState<{ id: string; name: string } | null>(null);
+  const eraseUser = useMutation({
+    mutationFn: (userId: string) => platformApi.eraseClientUser(userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allEmployees"] });
+      setEraseTarget(null);
+    },
   });
 
   if (!isPlatform) return <AccessDenied title="All Employees" />;
@@ -84,7 +103,7 @@ export default function AllEmployeesPage() {
                 <TableTh>Company</TableTh>
                 <TableTh>Role</TableTh>
                 <TableTh>Status</TableTh>
-                <TableTh className="w-28" />
+                <TableTh className="w-72" />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -109,14 +128,29 @@ export default function AllEmployeesPage() {
                       <Badge variant={active ? "success" : "neutral"}>{active ? "Active" : "Deactivated"}</Badge>
                     </TableTd>
                     <TableTd>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        loading={toggleStatus.isPending && toggleStatus.variables?.userId === e.id}
-                        onClick={() => toggleStatus.mutate({ userId: e.id, active })}
-                      >
-                        {active ? "Deactivate" : "Reactivate"}
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={exportData.isPending && exportData.variables === e.id}
+                          onClick={() => exportData.mutate(e.id)}
+                        >
+                          Export data
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={toggleStatus.isPending && toggleStatus.variables?.userId === e.id}
+                          onClick={() => toggleStatus.mutate({ userId: e.id, active })}
+                        >
+                          {active ? "Deactivate" : "Reactivate"}
+                        </Button>
+                        {!active && (
+                          <Button size="sm" variant="ghost" className="text-danger" onClick={() => setEraseTarget({ id: e.id, name: e.name })}>
+                            Erase
+                          </Button>
+                        )}
+                      </div>
                     </TableTd>
                   </TableRow>
                 );
@@ -125,6 +159,34 @@ export default function AllEmployeesPage() {
           </Table>
         </Card>
       )}
+
+      <Dialog open={!!eraseTarget} onOpenChange={(v) => !v && setEraseTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently erase {eraseTarget?.name}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            This permanently deletes their account and personal data (enrollments, certificates,
+            submissions, notifications) — unlike Deactivate, this cannot be undone. Use this only
+            to fulfill a data-erasure request.
+          </p>
+          {eraseUser.isError && (
+            <p className="text-sm text-danger">{(eraseUser.error as Error).message}</p>
+          )}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setEraseTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              loading={eraseUser.isPending}
+              onClick={() => eraseTarget && eraseUser.mutate(eraseTarget.id)}
+            >
+              Permanently erase
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

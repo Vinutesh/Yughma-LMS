@@ -64,11 +64,32 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-1.5 text-base font-semibold text-text-primary">Contact</h2>
+          <h2 className="mb-1.5 text-base font-semibold text-text-primary">Sub-processors</h2>
           <p>
-            Questions about this policy? Reach out to your Yughma account team or the address
-            provided in your organization&apos;s agreement.
+            We use a small number of infrastructure providers to operate the service: Cloudflare
+            (file/object storage) and Neon (database hosting). These providers process data only
+            on our instructions and only to the extent needed to run the service.
           </p>
+        </section>
+
+        <section>
+          <h2 className="mb-1.5 text-base font-semibold text-text-primary">
+            Grievance Officer / Data Protection Contact
+          </h2>
+          <p>
+            In accordance with the Information Technology Act, 2000, the IT (Intermediary
+            Guidelines and Digital Media Ethics Code) Rules, 2021, and the Digital Personal Data
+            Protection Act, 2023, questions, complaints, or data-rights requests (access,
+            correction, export, or erasure) can be directed to:
+          </p>
+          <p className="mt-2">
+            [Grievance Officer Name]
+            <br />
+            Yughma Technologies
+            <br />
+            Email: tech@yughma.com
+          </p>
+          <p className="mt-2">We aim to acknowledge requests within 5 business days.</p>
         </section>
 
         <p className="text-xs text-text-tertiary">

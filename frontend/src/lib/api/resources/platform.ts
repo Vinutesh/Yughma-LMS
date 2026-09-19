@@ -217,3 +217,27 @@ export async function listAllEmployees(): Promise<EmployeeDirectoryRow[]> {
     throw toApiError(err);
   }
 }
+
+/** The technical mechanism for a DPDP/GDPR data-access or portability
+ * request — a full JSON export of one person's data across every table
+ * that holds it. Callers trigger a browser download of the result rather
+ * than rendering it inline. */
+export async function exportUserData(userId: string): Promise<Record<string, unknown>> {
+  try {
+    return await trpcClient.platform.exportUserData.query({ userId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** Permanent erasure — distinct from `deactivateClientUser`'s reversible
+ * archive. Only allowed once a person is already deactivated; throws with
+ * a human-readable message if they authored content that blocks deletion
+ * (see the backend procedure's doc comment). */
+export async function eraseClientUser(userId: string): Promise<void> {
+  try {
+    await trpcClient.platform.eraseClientUser.mutate({ userId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}

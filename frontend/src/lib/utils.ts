@@ -23,3 +23,16 @@ export function gradientForSeed(seed: string): string {
   const hue = hueForSeed(seed);
   return `linear-gradient(135deg, hsl(${hue} 65% 45%), hsl(${hue + 25} 70% 38%))`;
 }
+
+/** Triggers a browser download of `data` as a formatted JSON file — used by
+ * data-export actions (a DPDP/GDPR portability request) so the result lands
+ * as a file the admin can hand off, rather than just rendering on screen. */
+export function downloadJson(filename: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

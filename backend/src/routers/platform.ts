@@ -347,4 +347,115 @@ export const platformRouter = router({
       createdAt: u.createdAt,
     }));
   }),
+
+  /**
+   * A full export of one client-org user's personal data — the technical
+   * mechanism for honoring a data-portability/access request under DPDP
+   * 2023 / GDPR, not just a policy promise. Deliberately read-only and
+   * flat: every table that carries this user's personal data, in one
+   * response, so the caller can hand it to the person or archive it as
+   * proof a request was fulfilled. Excludes other people's data even where
+   * this user appears only as a side reference (e.g. who graded their
+   * submission), since exporting IS this user's data, not the org's.
+   */
+  exportUserData: requirePlatformAdmin.input(z.object({ userId: z.string() })).query(async ({ ctx, input }) => {
+    const user = await ctx.rawDb.user.findUnique({
+      where: { id: input.userId },
+      include: { org: true, roles: { include: { role: true } }, department: true, team: true },
+    });
+    if (!user || user.org.isPlatform) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+
+    const [enrollments, pathEnrollments, certificates, submissions, notifications, posts, contentReports, auditLogEntries] =
+      await Promise.all([
+        ctx.rawDb.enrollment.findMany({ where: { userId: input.userId }, include: { course: { select: { title: true } } } }),
+        ctx.rawDb.pathEnrollment.findMany({ where: { userId: input.userId }, include: { path: { select: { title: true } } } }),
+        ctx.rawDb.certificate.findMany({ where: { userId: input.userId } }),
+        ctx.rawDb.submission.findMany({ where: { userId: input.userId } }),
+        ctx.rawDb.notificationItem.findMany({ where: { userId: input.userId } }),
+        ctx.rawDb.post.findMany({ where: { authorUserId: input.userId } }),
+        ctx.rawDb.contentReport.findMany({ where: { reportedByUserId: input.userId } }),
+        ctx.rawDb.auditLogEntry.findMany({ where: { actorUserId: input.userId } }),
+      ]);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      profile: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+        createdAt: user.createdAt,
+        organization: user.org.name,
+        department: user.department?.name ?? null,
+        team: user.team?.name ?? null,
+        roles: user.roles.map((r) => r.role.name),
+      },
+      courseEnrollments: enrollments.map((e) => ({
+        course: e.course.title,
+        status: e.status,
+        enrolledAt: e.enrolledAt,
+        completedAt: e.completedAt,
+        completedLessonIds: e.completedLessonIds,
+      })),
+      pathEnrollments: pathEnrollments.map((e) => ({
+        path: e.path.title,
+        enrolledAt: e.enrolledAt,
+        completedAt: e.completedAt,
+      })),
+      certificates: certificates.map((c) => ({
+        title: c.sourceTitle,
+        issuedAt: c.issuedAt,
+        verificationCode: c.verificationCode,
+        revoked: c.revoked,
+      })),
+      submissions: submissions.map((s) => ({
+        submittedAt: s.submittedAt,
+        text: s.text,
+        score: s.score,
+        feedback: s.feedback,
+      })),
+      notifications: notifications.map((n) => ({ title: n.title, category: n.category, createdAt: n.createdAt })),
+      communityPosts: posts.map((p) => ({ body: p.body, createdAt: p.createdAt })),
+      contentReportsFiled: contentReports.map((r) => ({ reason: r.reason, createdAt: r.createdAt })),
+      auditLogActions: auditLogEntries.map((a) => ({ action: a.action, summary: a.summary, at: a.at })),
+    };
+  }),
+
+  /**
+   * Permanent erasure — distinct from `deactivateClientUser`'s reversible
+   * archive. This actually deletes the row, cascading through every
+   * relation declared `onDelete: Cascade` in schema.prisma (enrollments,
+   * certificates, submissions, notifications, sessions, etc). Requires the
+   * user to already be deactivated first, so erasure is always a deliberate
+   * second step, never a one-click accident on an active account.
+   *
+   * A user who has authored platform content (a course, an uploaded asset,
+   * a discussion thread) sits behind a required, non-cascading foreign key
+   * on that content — deleting them would either fail outright or, if
+   * forced, delete content other people still rely on. Rather than
+   * silently cascading through someone else's course, this surfaces that
+   * as a clear error and leaves the decision (reassign authorship, or keep
+   * the account archived instead of erased) to a human.
+   */
+  eraseClientUser: requirePlatformAdmin.input(z.object({ userId: z.string() })).mutation(async ({ ctx, input }) => {
+    const user = await ctx.rawDb.user.findUnique({ where: { id: input.userId }, include: { org: true } });
+    if (!user || user.org.isPlatform) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+    if (user.status !== "deactivated") {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Deactivate this person before permanently erasing their data." });
+    }
+
+    try {
+      await ctx.rawDb.user.delete({ where: { id: input.userId } });
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Foreign key constraint")) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "This person authored content still in use (a course, an uploaded asset, or a discussion thread) and can't be erased until that content is reassigned or removed. They remain deactivated in the meantime.",
+        });
+      }
+      throw err;
+    }
+    return { ok: true };
+  }),
 });

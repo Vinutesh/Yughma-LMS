@@ -81,6 +81,21 @@ export default function TermsPage() {
           </p>
         </section>
 
+        <section>
+          <h2 className="mb-1.5 text-base font-semibold text-text-primary">Grievance Officer</h2>
+          <p>
+            As required under the Information Technology (Intermediary Guidelines and Digital
+            Media Ethics Code) Rules, 2021:
+          </p>
+          <p className="mt-2">
+            [Grievance Officer Name]
+            <br />
+            Yughma Technologies
+            <br />
+            Email: tech@yughma.com
+          </p>
+        </section>
+
         <p className="text-xs text-text-tertiary">
           This is a template agreement and does not constitute legal advice — have it reviewed by
           counsel before relying on it as a binding contract.
