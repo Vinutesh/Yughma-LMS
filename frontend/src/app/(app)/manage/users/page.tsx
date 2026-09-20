@@ -157,21 +157,24 @@ function InviteDialog({
   roles: Role[];
   onDone: () => void;
 }) {
-  const [rows, setRows] = useState<{ email: string; name: string; roleId: string }[]>([]);
+  /** `roleId: ""` means "no manage-mode role" — i.e. a plain Learner, which
+   * every account is implicitly. Deliberately not keyed off a role *named*
+   * "Learner": the platform org doesn't have one (its roles are Admin and
+   * Platform Admin), and requiring one is what used to make this dialog
+   * silently refuse to add anybody there at all. */
+  type InviteRow = { email: string; name: string; roleId: string };
+  const [rows, setRows] = useState<InviteRow[]>([]);
   const [draft, setDraft] = useState("");
   const [results, setResults] = useState<usersApi.InviteResult[] | null>(null);
-  const learnerRole = roles.find((r) => r.name === "Learner");
+  const assignableRoles = roles.filter((r) => r.name !== "Learner");
 
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (list: InviteRow[]) =>
       usersApi.inviteUsers(
-        rows.map((r) => ({
+        list.map((r) => ({
           name: r.name.trim() || r.email.split("@")[0],
           email: r.email,
-          // "Learner" is implicit on every account and isn't a real
-          // assignable manage-mode role — sending it would just fail the
-          // backend's own role lookup, so it maps to null.
-          roleId: r.roleId === learnerRole?.id ? null : r.roleId,
+          roleId: r.roleId || null,
         })),
       ),
     onSuccess: (res) => {
@@ -192,12 +195,23 @@ function InviteDialog({
       .join(" ");
   }
 
-  function addDraft() {
+  /** The typed-but-not-yet-committed email, as a row — or null if it isn't
+   * a usable address. Kept separate from `rows` so "type an address, click
+   * Send" works: the button used to be disabled until the text had been
+   * turned into a row by Enter/blur, and a disabled button never receives
+   * the click that would have blurred the input, so that combination just
+   * did nothing at all. */
+  function draftRow(): InviteRow | null {
     const v = draft.trim().toLowerCase();
-    if (v && v.includes("@") && !rows.some((r) => r.email === v) && learnerRole) {
-      setRows([...rows, { email: v, name: nameFromEmail(v), roleId: learnerRole.id }]);
-      setDraft("");
-    }
+    if (!v || !v.includes("@") || rows.some((r) => r.email === v)) return null;
+    return { email: v, name: nameFromEmail(v), roleId: "" };
+  }
+
+  function addDraft() {
+    const row = draftRow();
+    if (!row) return;
+    setRows([...rows, row]);
+    setDraft("");
   }
 
   function reset() {
@@ -236,12 +250,14 @@ function InviteDialog({
                   <span className="flex-1 truncate text-text-secondary">{r.email}</span>
                   <select
                     value={r.roleId}
+                    aria-label={`Role for ${r.email}`}
                     onChange={(e) =>
                       setRows(rows.map((x) => (x.email === r.email ? { ...x, roleId: e.target.value } : x)))
                     }
                     className="rounded border border-border bg-surface px-1.5 py-1 text-xs"
                   >
-                    {roles.map((role) => (
+                    <option value="">Learner</option>
+                    {assignableRoles.map((role) => (
                       <option key={role.id} value={role.id}>
                         {role.name}
                       </option>
@@ -278,7 +294,8 @@ function InviteDialog({
               }
             }}
             onBlur={addDraft}
-            placeholder="Add another email..."
+            aria-label="Email address to invite"
+            placeholder={rows.length === 0 ? "name@company.com" : "Add another email..."}
             className="rounded px-1.5 py-1.5 text-sm outline-none placeholder:text-text-tertiary"
           />
         </div>
@@ -292,9 +309,20 @@ function InviteDialog({
             {results ? "Done" : "Cancel"}
           </Button>
           <Button
-            disabled={rows.length === 0}
+            disabled={rows.length === 0 && !draftRow()}
             loading={mutation.isPending}
-            onClick={() => mutation.mutate()}
+            onClick={() => {
+              // Commit whatever is still sitting in the input first, and
+              // send that same list rather than reading `rows` back —
+              // `setRows` won't have applied yet in this handler.
+              const pending = draftRow();
+              const list = pending ? [...rows, pending] : rows;
+              if (pending) {
+                setRows(list);
+                setDraft("");
+              }
+              mutation.mutate(list);
+            }}
           >
             {results ? "Send again" : "Send invites"}
           </Button>
