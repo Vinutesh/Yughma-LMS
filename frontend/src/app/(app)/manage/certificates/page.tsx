@@ -443,38 +443,53 @@ function TemplateDesignDialog({
   const [dragging, setDragging] = useState<keyof CertificateOverlayLayout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Re-seed local drag state whenever a different template opens (or this
-  // one's background just changed), rather than carrying over the
-  // previous template's in-progress positions.
+  // The prop only ever reflects the template as it was the moment "Design"
+  // was clicked — every mutation below returns the freshly updated row, so
+  // that response (not the stale prop) is what actually drives what's
+  // rendered from then on. Without this, setting a background here still
+  // showed the empty "Upload background" state afterward, because nothing
+  // ever told this dialog the prop it opened with was now out of date.
+  const [current, setCurrent] = useState(template);
+
+  // Re-seed local state whenever a different template opens, rather than
+  // carrying over the previous template's in-progress positions.
   useEffect(() => {
+    setCurrent(template);
     setLayout(template?.overlayLayout ?? DEFAULT_LAYOUT);
-  }, [template?.id, template?.overlayLayout]);
+  }, [template]);
 
   const { data: background } = useQuery({
-    queryKey: ["templateBackground", template?.id],
-    queryFn: () => certificatesApi.getTemplateBackgroundUrl(template!.id),
-    enabled: !!template?.backgroundAssetId,
+    queryKey: ["templateBackground", current?.id, current?.backgroundAssetId],
+    queryFn: () => certificatesApi.getTemplateBackgroundUrl(current!.id),
+    enabled: !!current?.backgroundAssetId,
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["certificateTemplates"] });
 
   const setBackground = useMutation({
-    mutationFn: (assetId: string) => certificatesApi.updateTemplate(template!.id, { backgroundAssetId: assetId }),
-    onSuccess: () => {
+    mutationFn: (assetId: string) => certificatesApi.updateTemplate(current!.id, { backgroundAssetId: assetId }),
+    onSuccess: (updated) => {
       invalidate();
-      qc.invalidateQueries({ queryKey: ["templateBackground", template?.id] });
+      setCurrent(updated);
       setPickerOpen(false);
     },
   });
 
   const removeBackground = useMutation({
-    mutationFn: () => certificatesApi.updateTemplate(template!.id, { backgroundAssetId: null, overlayLayout: null }),
-    onSuccess: invalidate,
+    mutationFn: () => certificatesApi.updateTemplate(current!.id, { backgroundAssetId: null, overlayLayout: null }),
+    onSuccess: (updated) => {
+      invalidate();
+      setCurrent(updated);
+      setLayout(DEFAULT_LAYOUT);
+    },
   });
 
   const savePositions = useMutation({
-    mutationFn: () => certificatesApi.updateTemplate(template!.id, { overlayLayout: layout }),
-    onSuccess: invalidate,
+    mutationFn: () => certificatesApi.updateTemplate(current!.id, { overlayLayout: layout }),
+    onSuccess: (updated) => {
+      invalidate();
+      setCurrent(updated);
+    },
   });
 
   useEffect(() => {
@@ -497,16 +512,22 @@ function TemplateDesignDialog({
     };
   }, [dragging]);
 
-  if (!template) return null;
+  if (!current) return null;
 
   if (pickerOpen) {
     return (
       <Dialog open onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Upload a background for &quot;{template.name}&quot;</DialogTitle>
+            <DialogTitle>Upload a background for &quot;{current.name}&quot;</DialogTitle>
           </DialogHeader>
-          <ContentLibrary mode="picker" onUseSelected={(asset) => setBackground.mutate(asset.id)} />
+          <ContentLibrary
+            mode="picker"
+            onUseSelected={(asset) => setBackground.mutate(asset.id)}
+          />
+          {setBackground.isPending && (
+            <p className="text-xs text-text-tertiary">Saving background...</p>
+          )}
           <DialogFooter>
             <Button variant="secondary" onClick={() => setPickerOpen(false)}>
               Back
@@ -521,10 +542,10 @@ function TemplateDesignDialog({
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Design &quot;{template.name}&quot;</DialogTitle>
+          <DialogTitle>Design &quot;{current.name}&quot;</DialogTitle>
         </DialogHeader>
 
-        {!template.backgroundAssetId ? (
+        {!current.backgroundAssetId ? (
           <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border p-8 text-center">
             <p className="text-sm text-text-secondary">
               No background uploaded yet — this certificate uses the app&apos;s default layout.
@@ -578,7 +599,7 @@ function TemplateDesignDialog({
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          {template.backgroundAssetId && (
+          {current.backgroundAssetId && (
             <Button loading={savePositions.isPending} onClick={() => savePositions.mutate()}>
               Save positions
             </Button>
