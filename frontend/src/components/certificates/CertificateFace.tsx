@@ -13,6 +13,9 @@ import type { CertificateView } from "@/lib/api/resources/certificates";
  * decorative.
  */
 export function CertificateFace({ certificate }: { certificate: CertificateView }) {
+  if (certificate.backgroundUrl && certificate.overlayLayout) {
+    return <CustomCertificateFace certificate={certificate} />;
+  }
   return (
     <div className="relative overflow-hidden rounded-lg border border-gold/40 bg-surface p-10 text-center shadow-(--shadow-token-md)">
       <div className="pointer-events-none absolute inset-3 rounded-md border border-gold/25" aria-hidden />
@@ -46,6 +49,44 @@ export function CertificateFace({ certificate }: { certificate: CertificateView 
         </p>
       </div>
     </div>
+  );
+}
+
+/** Renders an admin-uploaded background design with the three dynamic
+ * fields dropped at their saved {x,y} percentages (set via the drag-to-
+ * position tool in Manage > Certificates) instead of the fixed layout
+ * above. The verification code prints below the design rather than over
+ * it, since its position isn't part of what the admin placed. */
+function CustomCertificateFace({ certificate }: { certificate: CertificateView }) {
+  const layout = certificate.overlayLayout!;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative w-full overflow-hidden rounded-lg border border-border shadow-(--shadow-token-md)">
+        {/* Aspect ratio matches a standard landscape certificate export;
+            the image itself still scales to the actual upload's ratio. */}
+        <img src={certificate.backgroundUrl} alt="" className="block w-full" />
+        <OverlayText position={layout.name} text={certificate.recipientName} />
+        <OverlayText position={layout.course} text={certificate.sourceTitle} />
+        <OverlayText position={layout.date} text={formatLongDate(certificate.issuedAt)} />
+      </div>
+      <p className="text-xs text-text-tertiary">
+        Verification code:{" "}
+        <span className="font-mono font-semibold tracking-wide text-text-secondary">
+          {certificate.verificationCode}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function OverlayText({ position, text }: { position: { x: number; y: number }; text: string }) {
+  return (
+    <span
+      className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[3.2vw] font-semibold text-slate-900 sm:text-lg"
+      style={{ left: `${position.x}%`, top: `${position.y}%` }}
+    >
+      {text}
+    </span>
   );
 }
 

@@ -55,6 +55,9 @@ export interface CreateAssignmentInput {
   pointsPossible: number;
   isQualifying?: boolean;
   passingScorePercent?: number;
+  /** The uploaded test/assignment document, picked from the Content
+   * Library — distinct from a learner's own submission file. */
+  assetId?: string;
 }
 
 export async function createAssignment(input: CreateAssignmentInput): Promise<Assignment> {
@@ -74,7 +77,14 @@ export async function updateAssignment(
   patch: Partial<
     Pick<
       Assignment,
-      "title" | "instructions" | "dueAt" | "submissionType" | "pointsPossible" | "isQualifying" | "passingScorePercent"
+      | "title"
+      | "instructions"
+      | "dueAt"
+      | "submissionType"
+      | "pointsPossible"
+      | "isQualifying"
+      | "passingScorePercent"
+      | "assetId"
     >
   >,
 ): Promise<void> {
@@ -84,6 +94,17 @@ export async function updateAssignment(
       ...patch,
       dueAt: patch.dueAt === undefined ? undefined : patch.dueAt ? new Date(patch.dueAt) : null,
     });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** The admin-uploaded test/assignment document's signed download URL —
+ * distinct from a learner's own submission file. `undefined` url means
+ * storage isn't configured; `null` return means nothing is attached. */
+export async function getAssignmentAssetUrl(assignmentId: string): Promise<{ name: string; url?: string } | null> {
+  try {
+    return await trpcClient.assignments.getAssignmentAssetUrl.query({ assignmentId });
   } catch (err) {
     throw toApiError(err);
   }

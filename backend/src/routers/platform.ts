@@ -422,27 +422,23 @@ export const platformRouter = router({
   }),
 
   /**
-   * Permanent erasure — distinct from `deactivateClientUser`'s reversible
-   * archive. This actually deletes the row, cascading through every
+   * Permanent deletion — actually deletes the row, cascading through every
    * relation declared `onDelete: Cascade` in schema.prisma (enrollments,
-   * certificates, submissions, notifications, sessions, etc). Requires the
-   * user to already be deactivated first, so erasure is always a deliberate
-   * second step, never a one-click accident on an active account.
+   * certificates, submissions, notifications, sessions, etc). No
+   * deactivate-first requirement — Delete deletes immediately, on an active
+   * account too; the frontend's confirmation dialog is the only guard
+   * against a misclick.
    *
    * A user who has authored platform content (a course, an uploaded asset,
    * a discussion thread) sits behind a required, non-cascading foreign key
    * on that content — deleting them would either fail outright or, if
    * forced, delete content other people still rely on. Rather than
    * silently cascading through someone else's course, this surfaces that
-   * as a clear error and leaves the decision (reassign authorship, or keep
-   * the account archived instead of erased) to a human.
+   * as a clear error and leaves reassigning that content to a human first.
    */
   eraseClientUser: requirePlatformAdmin.input(z.object({ userId: z.string() })).mutation(async ({ ctx, input }) => {
     const user = await ctx.rawDb.user.findUnique({ where: { id: input.userId }, include: { org: true } });
     if (!user || user.org.isPlatform) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
-    if (user.status !== "deactivated") {
-      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Deactivate this person before permanently erasing their data." });
-    }
 
     try {
       await ctx.rawDb.user.delete({ where: { id: input.userId } });
@@ -451,7 +447,7 @@ export const platformRouter = router({
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message:
-            "This person authored content still in use (a course, an uploaded asset, or a discussion thread) and can't be erased until that content is reassigned or removed. They remain deactivated in the meantime.",
+            "This person authored content still in use (a course, an uploaded asset, or a discussion thread) and can't be deleted until that content is reassigned or removed first.",
         });
       }
       throw err;

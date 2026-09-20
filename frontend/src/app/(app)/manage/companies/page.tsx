@@ -250,12 +250,11 @@ function CompanyDetail({ org }: { org: Organization }) {
       <Dialog open={!!eraseTarget} onOpenChange={(v) => !v && setEraseTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Permanently erase {eraseTarget?.name}?</DialogTitle>
+            <DialogTitle>Permanently delete {eraseTarget?.name}?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-text-secondary">
             This permanently deletes their account and personal data (enrollments, certificates,
-            submissions, notifications) — unlike Deactivate, this cannot be undone. Use this only
-            to fulfill a data-erasure request.
+            submissions, notifications) — this cannot be undone.
           </p>
           {eraseUser.isError && <p className="text-sm text-danger">{(eraseUser.error as Error).message}</p>}
           <DialogFooter>
@@ -267,7 +266,7 @@ function CompanyDetail({ org }: { org: Organization }) {
               loading={eraseUser.isPending}
               onClick={() => eraseTarget && eraseUser.mutate(eraseTarget.id)}
             >
-              Permanently erase
+              Permanently delete
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -310,11 +309,9 @@ function EmployeeRow({
         <Button size="sm" variant="ghost" loading={mutation.isPending} onClick={() => mutation.mutate()}>
           {active ? "Deactivate" : "Reactivate"}
         </Button>
-        {!active && (
-          <Button size="sm" variant="ghost" className="text-danger" onClick={onRequestErase}>
-            Erase
-          </Button>
-        )}
+        <Button size="sm" variant="ghost" className="text-danger" onClick={onRequestErase}>
+          Delete
+        </Button>
       </div>
     </div>
   );

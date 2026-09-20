@@ -4,6 +4,7 @@ import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
 import type { ScopedDb } from "../trpc/context.js";
 import type { rawPrisma } from "../db.js";
 import { issueCertificate } from "./certificates.js";
+import { resolvePlaybackUrl } from "./content.js";
 
 type RawDb = typeof rawPrisma;
 
@@ -100,6 +101,29 @@ export const assignmentsRouter = router({
     return summarize(ctx.rawDb, assignment);
   }),
 
+  /** The signed download URL for the admin-uploaded test/assignment
+   * document itself (`Assignment.assetId`) — distinct from a learner's own
+   * submission file. Same access rule as `get` above: platform staff with
+   * `courses:edit`, or a learner enrolled in the assignment's course. */
+  getAssignmentAssetUrl: protectedProcedure
+    .input(z.object({ assignmentId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const assignment = await ctx.rawDb.assignment.findUnique({ where: { id: input.assignmentId } });
+      if (!assignment || !assignment.assetId) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found." });
+
+      if (!(await hasEditPermission(ctx.db, ctx.session.roleIds))) {
+        const enrollment = await ctx.rawDb.enrollment.findUnique({
+          where: { courseId_userId: { courseId: assignment.courseId, userId: ctx.session.userId } },
+        });
+        if (!enrollment) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found." });
+      }
+
+      const asset = await ctx.rawDb.asset.findUnique({ where: { id: assignment.assetId } });
+      if (!asset) throw new TRPCError({ code: "NOT_FOUND", message: "Attached file not found." });
+
+      return { name: asset.name, url: await resolvePlaybackUrl(asset.storageKey) };
+    }),
+
   create: requirePermission("courses", "edit")
     .input(
       z.object({
@@ -111,6 +135,10 @@ export const assignmentsRouter = router({
         pointsPossible: z.number().int().max(100_000),
         isQualifying: z.boolean().optional(),
         passingScorePercent: z.number().int().min(1).max(100).optional(),
+        /** The uploaded test/assignment document itself, picked from the
+         * Content Library (the same picker + upload flow lesson files use) —
+         * distinct from what the learner later submits back. */
+        assetId: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -120,6 +148,11 @@ export const assignmentsRouter = router({
       }
       const course = await ctx.db.course.findUnique({ where: { id: input.courseId } });
       if (!course) throw new TRPCError({ code: "NOT_FOUND", message: "Course not found." });
+
+      if (input.assetId) {
+        const asset = await ctx.db.asset.findUnique({ where: { id: input.assetId } });
+        if (!asset) throw new TRPCError({ code: "NOT_FOUND", message: "Attached file not found." });
+      }
 
       // At most one qualifying assignment per course — making a new one the
       // qualifying assignment demotes whichever one held that spot before,
@@ -135,6 +168,7 @@ export const assignmentsRouter = router({
           courseId: input.courseId,
           title: input.title.trim(),
           instructions: input.instructions,
+          assetId: input.assetId,
           dueAt: input.dueAt,
           submissionType: input.submissionType,
           pointsPossible: input.pointsPossible,
@@ -156,6 +190,7 @@ export const assignmentsRouter = router({
         pointsPossible: z.number().int().max(100_000).optional(),
         isQualifying: z.boolean().optional(),
         passingScorePercent: z.number().int().min(1).max(100).optional(),
+        assetId: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input: { assignmentId, ...patch } }) => {
@@ -167,6 +202,11 @@ export const assignmentsRouter = router({
       }
       const assignment = await ctx.db.assignment.findUnique({ where: { id: assignmentId } });
       if (!assignment) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found." });
+
+      if (patch.assetId) {
+        const asset = await ctx.db.asset.findUnique({ where: { id: patch.assetId } });
+        if (!asset) throw new TRPCError({ code: "NOT_FOUND", message: "Attached file not found." });
+      }
 
       if (patch.isQualifying) {
         await ctx.db.assignment.updateMany({

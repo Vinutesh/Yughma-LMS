@@ -145,11 +145,9 @@ export default function AllEmployeesPage() {
                         >
                           {active ? "Deactivate" : "Reactivate"}
                         </Button>
-                        {!active && (
-                          <Button size="sm" variant="ghost" className="text-danger" onClick={() => setEraseTarget({ id: e.id, name: e.name })}>
-                            Erase
-                          </Button>
-                        )}
+                        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setEraseTarget({ id: e.id, name: e.name })}>
+                          Delete
+                        </Button>
                       </div>
                     </TableTd>
                   </TableRow>
@@ -163,12 +161,11 @@ export default function AllEmployeesPage() {
       <Dialog open={!!eraseTarget} onOpenChange={(v) => !v && setEraseTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Permanently erase {eraseTarget?.name}?</DialogTitle>
+            <DialogTitle>Permanently delete {eraseTarget?.name}?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-text-secondary">
             This permanently deletes their account and personal data (enrollments, certificates,
-            submissions, notifications) — unlike Deactivate, this cannot be undone. Use this only
-            to fulfill a data-erasure request.
+            submissions, notifications) — this cannot be undone.
           </p>
           {eraseUser.isError && (
             <p className="text-sm text-danger">{(eraseUser.error as Error).message}</p>
@@ -182,7 +179,7 @@ export default function AllEmployeesPage() {
               loading={eraseUser.isPending}
               onClick={() => eraseTarget && eraseUser.mutate(eraseTarget.id)}
             >
-              Permanently erase
+              Permanently delete
             </Button>
           </DialogFooter>
         </DialogContent>

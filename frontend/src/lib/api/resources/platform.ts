@@ -230,10 +230,9 @@ export async function exportUserData(userId: string): Promise<Record<string, unk
   }
 }
 
-/** Permanent erasure — distinct from `deactivateClientUser`'s reversible
- * archive. Only allowed once a person is already deactivated; throws with
- * a human-readable message if they authored content that blocks deletion
- * (see the backend procedure's doc comment). */
+/** Permanent, immediate deletion — no deactivate-first requirement. Throws
+ * with a human-readable message if they authored content that blocks
+ * deletion (see the backend procedure's doc comment). */
 export async function eraseClientUser(userId: string): Promise<void> {
   try {
     await trpcClient.platform.eraseClientUser.mutate({ userId });

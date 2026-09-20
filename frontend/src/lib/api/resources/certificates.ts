@@ -1,4 +1,4 @@
-import type { Certificate, CertificateTemplate } from "@/types/domain";
+import type { Certificate, CertificateOverlayLayout, CertificateTemplate } from "@/types/domain";
 import { trpcClient } from "@/lib/trpc/client";
 import { toApiError } from "@/lib/trpc/mapError";
 
@@ -25,16 +25,28 @@ export interface CertificateView extends Certificate {
   templateName: string;
   recipientName: string;
   orgName: string;
+  backgroundUrl?: string;
+  overlayLayout?: CertificateOverlayLayout;
 }
 
 function toCertificateView(c: Record<string, unknown>): CertificateView {
-  return toDateStrings(c, ["issuedAt", "revokedAt"]) as unknown as CertificateView;
+  const withDates = toDateStrings(c, ["issuedAt", "revokedAt"]);
+  return { ...withDates, overlayLayout: withDates.overlayLayout ?? undefined } as unknown as CertificateView;
+}
+
+function toCertificateTemplate(t: Record<string, unknown>): CertificateTemplate {
+  return {
+    ...t,
+    createdAt: new Date(t.createdAt as string).toISOString(),
+    backgroundAssetId: (t.backgroundAssetId as string | null) ?? undefined,
+    overlayLayout: (t.overlayLayout as CertificateOverlayLayout | null) ?? undefined,
+  } as CertificateTemplate;
 }
 
 export async function listTemplates(): Promise<CertificateTemplate[]> {
   try {
     const templates = await trpcClient.certificates.listTemplates.query();
-    return templates.map((t) => ({ ...t, createdAt: new Date(t.createdAt).toISOString() }));
+    return (templates as unknown as Record<string, unknown>[]).map(toCertificateTemplate);
   } catch (err) {
     throw toApiError(err);
   }
@@ -43,7 +55,29 @@ export async function listTemplates(): Promise<CertificateTemplate[]> {
 export async function createTemplate(name: string): Promise<CertificateTemplate> {
   try {
     const t = await trpcClient.certificates.createTemplate.mutate({ name });
-    return { ...t, createdAt: new Date(t.createdAt).toISOString() };
+    return toCertificateTemplate(t as unknown as Record<string, unknown>);
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** The raw background image's signed URL, for previewing/positioning
+ * before any certificate exists yet. */
+export async function getTemplateBackgroundUrl(templateId: string): Promise<{ url?: string }> {
+  try {
+    return await trpcClient.certificates.getTemplateBackgroundUrl.query({ templateId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export async function updateTemplate(
+  templateId: string,
+  patch: { backgroundAssetId?: string | null; overlayLayout?: CertificateOverlayLayout | null },
+): Promise<CertificateTemplate> {
+  try {
+    const t = await trpcClient.certificates.updateTemplate.mutate({ templateId, ...patch });
+    return toCertificateTemplate(t as unknown as Record<string, unknown>);
   } catch (err) {
     throw toApiError(err);
   }
@@ -99,6 +133,16 @@ export async function issueManually(input: { userId: string; templateId: string 
 export async function revokeCertificate(certificateId: string): Promise<void> {
   try {
     await trpcClient.certificates.revoke.mutate({ certificateId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** Permanent — unlike `revokeCertificate`, the row is gone and the public
+ * verification link reports "unknown" rather than "revoked". */
+export async function deleteCertificate(certificateId: string): Promise<void> {
+  try {
+    await trpcClient.certificates.delete.mutate({ certificateId });
   } catch (err) {
     throw toApiError(err);
   }

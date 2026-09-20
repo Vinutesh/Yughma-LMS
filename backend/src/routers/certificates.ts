@@ -3,8 +3,28 @@ import { TRPCError } from "@trpc/server";
 import { router, requirePermission, requirePlatformAdmin, protectedProcedure, publicProcedure } from "../trpc/trpc.js";
 import type { ScopedDb } from "../trpc/context.js";
 import { rawPrisma } from "../db.js";
+import { Prisma } from "../generated/prisma/client.js";
+import { resolvePlaybackUrl } from "./content.js";
 
 type RawDb = typeof rawPrisma;
+
+const positionSchema = z.object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) });
+const overlayLayoutSchema = z.object({ name: positionSchema, course: positionSchema, date: positionSchema });
+
+/** Resolves every template's background image to a signed URL once,
+ * shared across however many certificates use it — called with the exact
+ * set of templates a given query already fetched, never a fresh scan. */
+async function resolveBackgroundUrls(db: RawDb, templates: { id: string; backgroundAssetId: string | null }[]) {
+  const byTemplateId = new Map<string, string | undefined>();
+  await Promise.all(
+    templates.map(async (t) => {
+      if (!t.backgroundAssetId) return;
+      const asset = await db.asset.findUnique({ where: { id: t.backgroundAssetId } });
+      byTemplateId.set(t.id, asset ? await resolvePlaybackUrl(asset.storageKey) : undefined);
+    }),
+  );
+  return byTemplateId;
+}
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -69,11 +89,18 @@ export async function issueCertificate(
 
 function decorate(
   c: Awaited<ReturnType<ScopedDb["certificate"]["findMany"]>>[number],
-  templateName: string,
+  template: { name: string; backgroundUrl?: string; overlayLayout: unknown },
   recipientName: string,
   orgName: string,
 ) {
-  return { ...c, templateName, recipientName, orgName };
+  return {
+    ...c,
+    templateName: template.name,
+    recipientName,
+    orgName,
+    backgroundUrl: template.backgroundUrl,
+    overlayLayout: template.overlayLayout ?? null,
+  };
 }
 
 export const certificatesRouter = router({
@@ -81,11 +108,55 @@ export const certificatesRouter = router({
     ctx.db.certificateTemplate.findMany(),
   ),
 
+  /** The raw background image's signed URL, for the drag-to-position tool
+   * to preview against before any certificate has actually been issued
+   * from this template (unlike `list`/`mine`/`verifyCode`, which only
+   * resolve a background as a side effect of returning real certificates). */
+  getTemplateBackgroundUrl: requirePermission("courses", "view")
+    .input(z.object({ templateId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const template = await ctx.db.certificateTemplate.findUnique({ where: { id: input.templateId } });
+      if (!template || !template.backgroundAssetId) throw new TRPCError({ code: "NOT_FOUND", message: "No background set." });
+      const asset = await ctx.db.asset.findUnique({ where: { id: template.backgroundAssetId } });
+      if (!asset) throw new TRPCError({ code: "NOT_FOUND", message: "Background image not found." });
+      return { url: await resolvePlaybackUrl(asset.storageKey) };
+    }),
+
   createTemplate: requirePermission("courses", "edit")
     .input(z.object({ name: z.string().min(1) }))
     .mutation(({ ctx, input }) =>
       ctx.db.certificateTemplate.create({ data: { orgId: ctx.session.orgId, name: input.name.trim() } }),
     ),
+
+  /** Sets or clears a template's uploaded background design and the
+   * drag-to-position layout for its three dynamic fields (name, course,
+   * date). `backgroundAssetId: null` removes the background entirely,
+   * reverting that template to the app's one fixed layout. */
+  updateTemplate: requirePermission("courses", "edit")
+    .input(
+      z.object({
+        templateId: z.string(),
+        backgroundAssetId: z.string().nullable().optional(),
+        overlayLayout: overlayLayoutSchema.nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const template = await ctx.db.certificateTemplate.findUnique({ where: { id: input.templateId } });
+      if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Certificate not found." });
+
+      if (input.backgroundAssetId) {
+        const asset = await ctx.db.asset.findUnique({ where: { id: input.backgroundAssetId } });
+        if (!asset) throw new TRPCError({ code: "NOT_FOUND", message: "Background image not found." });
+      }
+
+      return ctx.db.certificateTemplate.update({
+        where: { id: input.templateId },
+        data: {
+          backgroundAssetId: input.backgroundAssetId,
+          overlayLayout: input.overlayLayout === null ? Prisma.JsonNull : input.overlayLayout,
+        },
+      });
+    }),
 
   /**
    * Cross-company view, newest first — a `Certificate` lives in the
@@ -101,17 +172,23 @@ export const certificatesRouter = router({
       ctx.rawDb.user.findMany({ select: { id: true, name: true } }),
       ctx.rawDb.organization.findMany({ select: { id: true, name: true } }),
     ]);
-    const templateName = new Map(templates.map((t) => [t.id, t.name]));
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+    const backgroundUrlByTemplateId = await resolveBackgroundUrls(ctx.rawDb, templates);
     const userName = new Map(users.map((u) => [u.id, u.name]));
     const orgName = new Map(orgs.map((o) => [o.id, o.name]));
-    return certificates.map((c) =>
-      decorate(
+    return certificates.map((c) => {
+      const template = templateById.get(c.templateId);
+      return decorate(
         c,
-        templateName.get(c.templateId) ?? "Certificate of Completion",
+        {
+          name: template?.name ?? "Certificate of Completion",
+          backgroundUrl: backgroundUrlByTemplateId.get(c.templateId),
+          overlayLayout: template?.overlayLayout,
+        },
         userName.get(c.userId) ?? "Unknown recipient",
         orgName.get(c.orgId) ?? "Unknown organization",
-      ),
-    );
+      );
+    });
   }),
 
   /** The learner's own wallet. Revoked certificates drop out of it.
@@ -124,12 +201,23 @@ export const certificatesRouter = router({
       orderBy: { issuedAt: "desc" },
     });
     const templates = await ctx.rawDb.certificateTemplate.findMany();
-    const templateName = new Map(templates.map((t) => [t.id, t.name]));
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+    const backgroundUrlByTemplateId = await resolveBackgroundUrls(ctx.rawDb, templates);
     const org = await ctx.rawDb.organization.findUniqueOrThrow({ where: { id: ctx.session.orgId } });
     const user = await ctx.db.user.findUniqueOrThrow({ where: { id: ctx.session.userId } });
-    return certificates.map((c) =>
-      decorate(c, templateName.get(c.templateId) ?? "Certificate of Completion", user.name, org.name),
-    );
+    return certificates.map((c) => {
+      const template = templateById.get(c.templateId);
+      return decorate(
+        c,
+        {
+          name: template?.name ?? "Certificate of Completion",
+          backgroundUrl: backgroundUrlByTemplateId.get(c.templateId),
+          overlayLayout: template?.overlayLayout,
+        },
+        user.name,
+        org.name,
+      );
+    });
   }),
 
   /**
@@ -153,9 +241,15 @@ export const certificatesRouter = router({
       rawPrisma.user.findUniqueOrThrow({ where: { id: certificate.userId } }),
       rawPrisma.organization.findUniqueOrThrow({ where: { id: certificate.orgId } }),
     ]);
+    const backgroundUrlByTemplateId = await resolveBackgroundUrls(rawPrisma, [template]);
     return {
       status: "valid" as const,
-      certificate: decorate(certificate, template.name, user.name, org.name),
+      certificate: decorate(
+        certificate,
+        { name: template.name, backgroundUrl: backgroundUrlByTemplateId.get(template.id), overlayLayout: template.overlayLayout },
+        user.name,
+        org.name,
+      ),
     };
   }),
 
@@ -212,5 +306,29 @@ export const certificatesRouter = router({
         },
       });
       return updated;
+    }),
+
+  /** Permanent — the row is gone and the public verification link reports
+   * "unknown" rather than "revoked", unlike `revoke` above. Same cross-org
+   * pattern (`ctx.rawDb`, audit entry written into the certificate's own
+   * org) since the certificate lives in the recipient's org, not the
+   * platform-admin caller's. */
+  delete: requirePlatformAdmin
+    .input(z.object({ certificateId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const certificate = await ctx.rawDb.certificate.findUnique({ where: { id: input.certificateId } });
+      if (!certificate) throw new TRPCError({ code: "NOT_FOUND", message: "Certificate not found." });
+
+      await ctx.rawDb.certificate.delete({ where: { id: input.certificateId } });
+      await ctx.rawDb.auditLogEntry.create({
+        data: {
+          orgId: certificate.orgId,
+          actorUserId: ctx.session.userId,
+          action: "certificate_deleted",
+          summary: "Certificate permanently deleted",
+          targetLabel: certificate.sourceTitle,
+        },
+      });
+      return { ok: true };
     }),
 });

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
@@ -31,6 +32,11 @@ export default function AssignmentSubmitPage() {
     queryFn: () => assignmentsApi.getMySubmission(assignmentId),
     enabled: !!session,
   });
+  const { data: assignmentFile } = useQuery({
+    queryKey: ["assignmentAsset", assignmentId],
+    queryFn: () => assignmentsApi.getAssignmentAssetUrl(assignmentId),
+    enabled: !!session && !!assignment?.assetId,
+  });
 
   if (isLoading || loadingSubmission) {
     return <p className="p-8 text-sm text-text-tertiary">Loading assignment...</p>;
@@ -44,6 +50,7 @@ export default function AssignmentSubmitPage() {
       key={submission?.id ?? "new"}
       assignment={assignment}
       submission={submission ?? null}
+      assignmentFile={assignmentFile ?? null}
     />
   );
 }
@@ -51,9 +58,11 @@ export default function AssignmentSubmitPage() {
 function AssignmentBody({
   assignment,
   submission,
+  assignmentFile,
 }: {
   assignment: AssignmentSummary;
   submission: Submission | null;
+  assignmentFile: { name: string; url?: string } | null;
 }) {
   const session = useSessionStore((s) => s.session)!;
   const qc = useQueryClient();
@@ -129,9 +138,26 @@ function AssignmentBody({
         {assignment.courseTitle} · {assignment.pointsPossible} pts
       </p>
 
-      <p className="mb-5 whitespace-pre-wrap border-t border-border pt-4 text-sm leading-relaxed text-text-secondary">
+      <p className="whitespace-pre-wrap border-t border-border pt-4 text-sm leading-relaxed text-text-secondary">
         {assignment.instructions}
       </p>
+
+      {assignment.assetId && (
+        <div className="mb-5 mt-3 flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <span className="text-sm text-text-secondary">{assignmentFile?.name ?? "Assignment file"}</span>
+          {assignmentFile?.url ? (
+            <a href={assignmentFile.url} target="_blank" rel="noreferrer">
+              <Button size="sm" variant="secondary">
+                <Download className="mr-1.5 size-3.5" aria-hidden />
+                Download
+              </Button>
+            </a>
+          ) : (
+            <span className="text-xs text-text-tertiary">Not downloadable yet</span>
+          )}
+        </div>
+      )}
+      {!assignment.assetId && <div className="mb-5" />}
 
       {graded ? (
         <div className="flex flex-col gap-4">

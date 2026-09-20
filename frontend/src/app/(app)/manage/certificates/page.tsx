@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Award } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { ContentLibrary } from "@/components/content/ContentLibrary";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 import { useSessionStore } from "@/state/sessionStore";
@@ -20,6 +21,7 @@ import * as usersApi from "@/lib/api/resources/users";
 import type { CertificateView } from "@/lib/api/resources/certificates";
 import { ApiError } from "@/lib/api/errors";
 import { formatLongDate } from "@/components/certificates/CertificateFace";
+import type { CertificateOverlayLayout, CertificateTemplate } from "@/types/domain";
 
 export default function ManageCertificatesPage() {
   const canEdit = usePermission("courses", "edit");
@@ -27,7 +29,9 @@ export default function ManageCertificatesPage() {
   const qc = useQueryClient();
   const [issueOpen, setIssueOpen] = useState(false);
   const [revoking, setRevoking] = useState<CertificateView | null>(null);
+  const [deleting, setDeleting] = useState<CertificateView | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [designingTemplate, setDesigningTemplate] = useState<CertificateTemplate | null>(null);
 
   const { data: certificates = [], isLoading } = useQuery({
     queryKey: ["certificates", session?.org.id],
@@ -45,6 +49,14 @@ export default function ManageCertificatesPage() {
     onSuccess: () => {
       invalidate();
       setRevoking(null);
+    },
+  });
+
+  const deleteCert = useMutation({
+    mutationFn: (id: string) => certificatesApi.deleteCertificate(id),
+    onSuccess: () => {
+      invalidate();
+      setDeleting(null);
     },
   });
 
@@ -110,20 +122,22 @@ export default function ManageCertificatesPage() {
                   </TableTd>
                   <TableTd>
                     <div className="flex items-center justify-end gap-2">
-                      {certificate.revoked ? (
-                        <Badge variant="danger">Revoked</Badge>
-                      ) : (
-                        <Menu>
-                          <MenuTrigger
-                            label={`Actions for ${certificate.recipientName}'s certificate`}
-                          />
-                          <MenuContent>
+                      {certificate.revoked && <Badge variant="danger">Revoked</Badge>}
+                      <Menu>
+                        <MenuTrigger
+                          label={`Actions for ${certificate.recipientName}'s certificate`}
+                        />
+                        <MenuContent>
+                          {!certificate.revoked && (
                             <MenuItem destructive onSelect={() => setRevoking(certificate)}>
                               Revoke
                             </MenuItem>
-                          </MenuContent>
-                        </Menu>
-                      )}
+                          )}
+                          <MenuItem destructive onSelect={() => setDeleting(certificate)}>
+                            Delete permanently
+                          </MenuItem>
+                        </MenuContent>
+                      </Menu>
                     </div>
                   </TableTd>
                 </TableRow>
@@ -142,7 +156,19 @@ export default function ManageCertificatesPage() {
         }}
       />
 
-      <TemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
+      <TemplatesDialog
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        onDesign={(t) => {
+          setTemplatesOpen(false);
+          setDesigningTemplate(t);
+        }}
+      />
+
+      <TemplateDesignDialog
+        template={designingTemplate}
+        onOpenChange={(v) => !v && setDesigningTemplate(null)}
+      />
 
       <Dialog open={!!revoking} onOpenChange={(o) => !o && setRevoking(null)}>
         <DialogContent>
@@ -162,6 +188,30 @@ export default function ManageCertificatesPage() {
               onClick={() => revoking && revoke.mutate(revoking.id)}
             >
               Revoke
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently delete {deleting?.recipientName}&apos;s certificate?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            Unlike Revoke, this removes the record entirely — the public verification link will
+            report it as unknown, not revoked. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              loading={deleteCert.isPending}
+              onClick={() => deleting && deleteCert.mutate(deleting.id)}
+            >
+              Delete permanently
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -267,14 +317,18 @@ function IssueDialog({
   );
 }
 
-/** v1 has no visual designer, so a "template" is just a name that courses
- * and paths can point at. This is the only place they're created. */
+/** A "template" is a name plus, optionally, an uploaded background design
+ * with dynamic fields positioned on it (see `TemplateDesignDialog`). This
+ * is the only place templates are created; designing one happens in the
+ * separate dialog `onDesign` opens. */
 function TemplatesDialog({
   open,
   onOpenChange,
+  onDesign,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onDesign: (template: CertificateTemplate) => void;
 }) {
   const org = useSessionStore((s) => s.session?.org);
   const qc = useQueryClient();
@@ -304,17 +358,25 @@ function TemplatesDialog({
           <DialogTitle>Certificate names</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-text-tertiary">
-          One fixed layout in this version — the name is what appears on the certificate and in the
-          award dropdowns.
+          The name appears in award dropdowns. Design a background to replace the app&apos;s
+          default certificate layout for that name.
         </p>
         {templates.length > 0 && (
           <ul className="flex flex-col gap-1.5">
             {templates.map((t) => (
               <li
                 key={t.id}
-                className="rounded-md border border-border px-3 py-2 text-sm text-text-secondary"
+                className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm text-text-secondary"
               >
-                {t.name}
+                <span>
+                  {t.name}
+                  {t.backgroundAssetId && (
+                    <span className="ml-2 text-xs text-text-tertiary">Custom design</span>
+                  )}
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => onDesign(t)}>
+                  Design
+                </Button>
               </li>
             ))}
           </ul>
@@ -342,6 +404,185 @@ function TemplatesDialog({
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Done
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const DEFAULT_LAYOUT: CertificateOverlayLayout = {
+  name: { x: 50, y: 38 },
+  course: { x: 50, y: 55 },
+  date: { x: 20, y: 88 },
+};
+
+const FIELD_LABELS: Record<keyof CertificateOverlayLayout, string> = {
+  name: "Recipient name",
+  course: "Course",
+  date: "Date",
+};
+
+/**
+ * Upload (or pick from the Content Library) a background design, then drag
+ * three markers onto it to say where the recipient's name, course, and
+ * issue date should land — the same three fields every certificate has
+ * always shown, now placed wherever this specific design's blank lines
+ * are instead of the app's fixed layout. Removing the background reverts
+ * this template to that fixed layout.
+ */
+function TemplateDesignDialog({
+  template,
+  onOpenChange,
+}: {
+  template: CertificateTemplate | null;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [layout, setLayout] = useState<CertificateOverlayLayout>(template?.overlayLayout ?? DEFAULT_LAYOUT);
+  const [dragging, setDragging] = useState<keyof CertificateOverlayLayout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Re-seed local drag state whenever a different template opens (or this
+  // one's background just changed), rather than carrying over the
+  // previous template's in-progress positions.
+  useEffect(() => {
+    setLayout(template?.overlayLayout ?? DEFAULT_LAYOUT);
+  }, [template?.id, template?.overlayLayout]);
+
+  const { data: background } = useQuery({
+    queryKey: ["templateBackground", template?.id],
+    queryFn: () => certificatesApi.getTemplateBackgroundUrl(template!.id),
+    enabled: !!template?.backgroundAssetId,
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["certificateTemplates"] });
+
+  const setBackground = useMutation({
+    mutationFn: (assetId: string) => certificatesApi.updateTemplate(template!.id, { backgroundAssetId: assetId }),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["templateBackground", template?.id] });
+      setPickerOpen(false);
+    },
+  });
+
+  const removeBackground = useMutation({
+    mutationFn: () => certificatesApi.updateTemplate(template!.id, { backgroundAssetId: null, overlayLayout: null }),
+    onSuccess: invalidate,
+  });
+
+  const savePositions = useMutation({
+    mutationFn: () => certificatesApi.updateTemplate(template!.id, { overlayLayout: layout }),
+    onSuccess: invalidate,
+  });
+
+  useEffect(() => {
+    if (!dragging) return;
+    function onMove(e: PointerEvent) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+      const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+      setLayout((prev) => ({ ...prev, [dragging as keyof CertificateOverlayLayout]: { x, y } }));
+    }
+    function onUp() {
+      setDragging(null);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [dragging]);
+
+  if (!template) return null;
+
+  if (pickerOpen) {
+    return (
+      <Dialog open onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Upload a background for &quot;{template.name}&quot;</DialogTitle>
+          </DialogHeader>
+          <ContentLibrary mode="picker" onUseSelected={(asset) => setBackground.mutate(asset.id)} />
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setPickerOpen(false)}>
+              Back
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Design &quot;{template.name}&quot;</DialogTitle>
+        </DialogHeader>
+
+        {!template.backgroundAssetId ? (
+          <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border p-8 text-center">
+            <p className="text-sm text-text-secondary">
+              No background uploaded yet — this certificate uses the app&apos;s default layout.
+            </p>
+            <Button onClick={() => setPickerOpen(true)}>Upload background</Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-text-tertiary">
+              Drag each label onto its blank line, then save. This is exactly where the recipient
+              name, course, and date will print on every certificate using this design.
+            </p>
+            <div
+              ref={containerRef}
+              className="relative w-full touch-none select-none overflow-hidden rounded-md border border-border"
+            >
+              {background?.url ? (
+                <img src={background.url} alt="" className="block w-full" draggable={false} />
+              ) : (
+                <div className="flex aspect-video items-center justify-center text-xs text-text-tertiary">
+                  Loading preview...
+                </div>
+              )}
+              {(Object.keys(layout) as (keyof CertificateOverlayLayout)[]).map((field) => (
+                <button
+                  key={field}
+                  type="button"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    setDragging(field);
+                  }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 cursor-move rounded-full border-2 border-accent bg-accent-soft px-2 py-1 text-[11px] font-semibold text-accent-soft-fg shadow-(--shadow-token-sm)"
+                  style={{ left: `${layout[field].x}%`, top: `${layout[field].y}%` }}
+                >
+                  {FIELD_LABELS[field]}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <Button size="sm" variant="secondary" onClick={() => setPickerOpen(true)}>
+                Replace background
+              </Button>
+              <Button size="sm" variant="ghost" className="text-danger" onClick={() => removeBackground.mutate()}>
+                Remove background
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          {template.backgroundAssetId && (
+            <Button loading={savePositions.isPending} onClick={() => savePositions.mutate()}>
+              Save positions
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

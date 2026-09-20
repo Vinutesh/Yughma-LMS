@@ -22,7 +22,7 @@ import { extractScormPackage, ScormExtractionError } from "../scorm/extract.js";
  * this router hands out switches to the CDN automatically, no code change
  * needed.
  */
-async function resolvePlaybackUrl(storageKey: string | null): Promise<string | undefined> {
+export async function resolvePlaybackUrl(storageKey: string | null): Promise<string | undefined> {
   if (!storageKey) return undefined;
   if (isCdnConfigured()) return getStreamingUrl(storageKey);
   if (isStorageConfigured()) return getDownloadUrl(storageKey);

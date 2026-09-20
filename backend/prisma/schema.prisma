@@ -298,6 +298,8 @@ model Asset {
   scormLaunchPath  String?
   lessons          Lesson[]
   scormLaunchTokens ScormLaunchToken[]
+  assignments      Assignment[]
+  certificateTemplates CertificateTemplate[]
 
   @@index([orgId])
 }
@@ -458,6 +460,12 @@ model Assignment {
   courseId         String
   title            String
   instructions     String
+  /// The test/assignment document itself — what the admin uploads for
+  /// learners to work from, distinct from `Submission.assetId` (what the
+  /// learner hands back). Optional: an assignment can be text-instructions
+  /// only, same as before this field existed.
+  asset            Asset?         @relation(fields: [assetId], references: [id])
+  assetId          String?
   dueAt            DateTime?
   submissionType   SubmissionType
   pointsPossible   Int
@@ -507,6 +515,18 @@ model CertificateTemplate {
   org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   orgId     String
   name      String
+  /// An admin-uploaded design (e.g. from Canva) to render behind the
+  /// dynamic fields instead of the app's one fixed layout. Optional —
+  /// a template with no background still renders the original fixed
+  /// design (see `CertificateFace.tsx`).
+  backgroundAsset   Asset?  @relation(fields: [backgroundAssetId], references: [id])
+  backgroundAssetId String?
+  /// Where the recipient name / course title / issue date land on
+  /// `backgroundAsset`, as {x,y} percentages (0-100) of the image's own
+  /// width/height — set via the drag-to-position tool in Manage >
+  /// Certificates. Shape: `{ name: {x,y}, course: {x,y}, date: {x,y} }`.
+  /// Meaningless without a `backgroundAssetId`.
+  overlayLayout Json?
   createdAt DateTime     @default(now())
 
   courses      Course[]
@@ -702,6 +722,7 @@ enum AuditActionType {
   course_archived
   course_published
   certificate_revoked
+  certificate_deleted
   org_settings_changed
   plan_changed
 }

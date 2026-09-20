@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, TableBody, TableHead, TableRow, TableTd, TableTh } from "@/components/ui/Table";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/Menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
+import { ContentLibrary } from "@/components/content/ContentLibrary";
 import { AccessDenied } from "@/components/patterns/AccessDenied";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { usePermission } from "@/hooks/usePermission";
@@ -30,6 +31,7 @@ export default function ManageAssignmentsPage() {
   const session = useSessionStore((s) => s.session);
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [attachFileFor, setAttachFileFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { data: assignments = [], isLoading } = useQuery({
@@ -54,6 +56,18 @@ export default function ManageAssignmentsPage() {
     mutationFn: ({ id, isQualifying }: { id: string; isQualifying: boolean }) =>
       assignmentsApi.updateAssignment(id, { isQualifying }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["assignments"] }),
+    onError: (err) => {
+      if (err instanceof ApiError) setError(err.message);
+    },
+  });
+
+  const attachFile = useMutation({
+    mutationFn: ({ id, assetId }: { id: string; assetId: string }) =>
+      assignmentsApi.updateAssignment(id, { assetId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["assignments"] });
+      setAttachFileFor(null);
+    },
     onError: (err) => {
       if (err instanceof ApiError) setError(err.message);
     },
@@ -102,6 +116,12 @@ export default function ManageAssignmentsPage() {
                   >
                     {a.title}
                   </Link>
+                  {a.assetId && (
+                    <Paperclip
+                      className="ml-1.5 inline size-3 text-text-tertiary"
+                      aria-label="Has an attached file"
+                    />
+                  )}
                 </TableTd>
                 <TableTd className="text-xs">{a.courseTitle}</TableTd>
                 <TableTd className="text-xs">
@@ -133,6 +153,14 @@ export default function ManageAssignmentsPage() {
                       <MenuItem
                         onSelect={() => {
                           setError(null);
+                          setAttachFileFor(a.id);
+                        }}
+                      >
+                        {a.assetId ? "Replace assignment file" : "Attach assignment file"}
+                      </MenuItem>
+                      <MenuItem
+                        onSelect={() => {
+                          setError(null);
                           toggleQualifying.mutate({ id: a.id, isQualifying: !a.isQualifying });
                         }}
                       >
@@ -157,6 +185,23 @@ export default function ManageAssignmentsPage() {
       )}
 
       <CreateAssignmentDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      <Dialog open={!!attachFileFor} onOpenChange={(v) => !v && setAttachFileFor(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Upload the assignment file</DialogTitle>
+          </DialogHeader>
+          <ContentLibrary
+            mode="picker"
+            onUseSelected={(asset) => attachFileFor && attachFile.mutate({ id: attachFileFor, assetId: asset.id })}
+          />
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setAttachFileFor(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -178,6 +223,9 @@ function CreateAssignmentDialog({
   const [points, setPoints] = useState("20");
   const [isQualifying, setIsQualifying] = useState(false);
   const [passingScorePercent, setPassingScorePercent] = useState("80");
+  const [assetId, setAssetId] = useState<string | undefined>(undefined);
+  const [assetName, setAssetName] = useState<string | undefined>(undefined);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: courses = [] } = useQuery({
@@ -196,6 +244,7 @@ function CreateAssignmentDialog({
         pointsPossible: Number(points),
         isQualifying,
         passingScorePercent: Number(passingScorePercent),
+        assetId,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["assignments"] });
@@ -205,12 +254,39 @@ function CreateAssignmentDialog({
       setDueAt("");
       setIsQualifying(false);
       setPassingScorePercent("80");
+      setAssetId(undefined);
+      setAssetName(undefined);
       setError(null);
     },
     onError: (err) => {
       if (err instanceof ApiError) setError(err.message);
     },
   });
+
+  if (pickerOpen) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Upload the assignment file</DialogTitle>
+          </DialogHeader>
+          <ContentLibrary
+            mode="picker"
+            onUseSelected={(asset) => {
+              setAssetId(asset.id);
+              setAssetName(asset.name);
+              setPickerOpen(false);
+            }}
+          />
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setPickerOpen(false)}>
+              Back
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -252,6 +328,20 @@ function CreateAssignmentDialog({
               rows={3}
               className="rounded-md border border-border bg-surface p-2 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Assignment file (optional)</Label>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <span className="text-sm text-text-secondary">
+                {assetName ?? "Nothing attached — text instructions only"}
+              </span>
+              <Button size="sm" variant="secondary" onClick={() => setPickerOpen(true)}>
+                {assetName ? "Change" : "Upload"}
+              </Button>
+            </div>
+            <p className="text-xs text-text-tertiary">
+              The test/document learners work from — uploaded here, not by the learner.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">

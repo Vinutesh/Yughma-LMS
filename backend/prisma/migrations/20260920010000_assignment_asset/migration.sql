@@ -1,0 +1,2 @@
+ALTER TABLE "Assignment" ADD COLUMN "assetId" TEXT;
+ALTER TABLE "Assignment" ADD CONSTRAINT "Assignment_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "Asset"("id") ON DELETE SET NULL ON UPDATE CASCADE;

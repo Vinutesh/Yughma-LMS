@@ -269,6 +269,9 @@ export interface Assignment {
   dueAt?: string;
   submissionType: SubmissionType;
   pointsPossible: number;
+  /** The uploaded test/assignment document itself, distinct from what the
+   * learner submits back (`Submission.assetId`). */
+  assetId?: string;
   /** At most one qualifying assignment per course — the submission whose
    * graded score gates that course's certificate, instead of the
    * certificate issuing on lesson completion alone. */
@@ -309,10 +312,25 @@ export interface Skill {
  * certificate whose variable fields get filled in at issue time. There is no
  * visual designer — see LMS/docs/modules/15-certificates/00-open-questions.md.
  */
+export interface CertificatePosition {
+  x: number;
+  y: number;
+}
+
+export interface CertificateOverlayLayout {
+  name: CertificatePosition;
+  course: CertificatePosition;
+  date: CertificatePosition;
+}
+
 export interface CertificateTemplate {
   id: string;
   orgId: string;
   name: string;
+  /** An admin-uploaded design to render behind the dynamic fields instead
+   * of the app's one fixed layout. */
+  backgroundAssetId?: string;
+  overlayLayout?: CertificateOverlayLayout;
   createdAt: string;
 }
 
