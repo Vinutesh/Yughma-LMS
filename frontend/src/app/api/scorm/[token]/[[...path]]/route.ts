@@ -72,6 +72,20 @@ const WRAPPER_SEGMENT = "__scorm_wrapper__";
 const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
 
 /**
+ * Every sub-resource a package asks for (its JS, CSS, images, audio — a
+ * real Storyline export is 70+ files) costs one R2 GetObject on a cache
+ * miss, so a short TTL meant re-paying that for every learner, every hour.
+ * These objects are genuinely immutable: they live under
+ * `{orgId}/scorm/{assetId}/`, and `assetId` is unique per upload — editing
+ * a package means uploading a new one, which lands on a different prefix
+ * and therefore a different URL. Nothing can change underneath this URL,
+ * so it's safe to cache for a year. `private` (not `public`) is deliberate
+ * even so: these URLs carry a launch token, and they must never be held in
+ * a shared/proxy cache where another learner could be served one.
+ */
+const SUB_RESOURCE_CACHE = "private, max-age=31536000, immutable";
+
+/**
  * The initial CMI state a re-opened package should see — "have I already
  * finished this?" and, for an assignment, "what did I score last time?".
  * Branches on which of `lessonId`/`assignmentId` the launch token carries
@@ -158,11 +172,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
         .toString("utf-8")
         .replace(/<head[^>]*>/i, (match) => `${match}\n${buildStorageShimScript()}`);
       return new NextResponse(html, {
-        headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=3600", ...CORS_HEADERS },
+        headers: { "Content-Type": contentType, "Cache-Control": SUB_RESOURCE_CACHE, ...CORS_HEADERS },
       });
     }
     return new NextResponse(new Uint8Array(data), {
-      headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=3600", ...CORS_HEADERS },
+      headers: { "Content-Type": contentType, "Cache-Control": SUB_RESOURCE_CACHE, ...CORS_HEADERS },
     });
   }
 

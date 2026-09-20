@@ -46,17 +46,33 @@ function escapeHtml(s: string): string {
  * down or unconfigured — this is a convenience on top of that, not the only
  * path.
  */
-async function send(to: string, subject: string, html: string): Promise<void> {
-  if (!isEmailConfigured()) return;
+/**
+ * Returns whether the message actually went out, so callers can tell an
+ * admin "relay this by hand" instead of implying it was delivered.
+ *
+ * The Resend SDK reports API failures in its *return value* (`{ data,
+ * error }`), not by throwing — so a try/catch alone, which is all this
+ * used to have, treated a hard rejection (unverified sending domain, say)
+ * as success and reported nothing. That's the difference between "the
+ * invite email is on its way" and a silently dropped message.
+ */
+async function send(to: string, subject: string, html: string): Promise<boolean> {
+  if (!isEmailConfigured()) return false;
   try {
-    await getClient().emails.send({ from: getEnv("EMAIL_FROM")!, to, subject, html });
+    const result = await getClient().emails.send({ from: getEnv("EMAIL_FROM")!, to, subject, html });
+    if (result.error) {
+      console.error(`Failed to send email to ${to}:`, result.error);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error(`Failed to send email to ${to}:`, err);
+    return false;
   }
 }
 
-export async function sendWelcomeEmail(to: string, name: string, tempPassword: string): Promise<void> {
-  await send(
+export async function sendWelcomeEmail(to: string, name: string, tempPassword: string): Promise<boolean> {
+  return send(
     to,
     "Your Yughma LMS account",
     `<p>Hi ${escapeHtml(name)},</p>
@@ -67,8 +83,8 @@ export async function sendWelcomeEmail(to: string, name: string, tempPassword: s
   );
 }
 
-export async function sendAccessGrantedEmail(to: string, name: string, courseTitle: string): Promise<void> {
-  await send(
+export async function sendAccessGrantedEmail(to: string, name: string, courseTitle: string): Promise<boolean> {
+  return send(
     to,
     `You've been granted access to "${courseTitle}"`,
     `<p>Hi ${escapeHtml(name)},</p>

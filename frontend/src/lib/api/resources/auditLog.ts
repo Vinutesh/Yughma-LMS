@@ -1,5 +1,4 @@
 import type { AuditActionType, AuditLogEntry } from "@/types/domain";
-import { useDirectoryStore } from "@/state/directoryStore";
 import { trpcClient } from "@/lib/trpc/client";
 import { toApiError } from "@/lib/trpc/mapError";
 
@@ -57,32 +56,10 @@ export async function listAuditLog(filters: AuditLogFilters = {}): Promise<Audit
   }
 }
 
-/**
- * Fire-and-forget append used by every mutating action that's worth a
- * compliance trail — role changes, deactivation, course lifecycle,
- * certificate revocation, org/plan changes. Silently no-ops if either id is
- * missing rather than throwing, since a caller reconstructing a stale
- * reference (e.g. a course already deleted) shouldn't crash the action that's
- * actually in progress.
- */
-export function logAudit(
-  orgId: string | undefined,
-  actorUserId: string | undefined,
-  action: AuditActionType,
-  summary: string,
-  targetLabel?: string,
-  detail?: Record<string, string>,
-): void {
-  if (!orgId || !actorUserId) return;
-  const entry: AuditLogEntry = {
-    id: `audit_${crypto.randomUUID().slice(0, 8)}`,
-    orgId,
-    at: new Date().toISOString(),
-    actorUserId,
-    action,
-    summary,
-    targetLabel,
-    detail,
-  };
-  useDirectoryStore.getState().addAuditEntry(entry);
-}
+// There is deliberately no `logAudit` here anymore. It was a mock-era
+// leftover that appended entries to a client-side Zustand store — so they
+// lived in one browser tab's memory and vanished on refresh — and it had
+// zero callers besides. Audit entries are written server-side by the
+// mutations that cause them (see `courses.ts`'s publish/archive,
+// `certificates.ts`'s revoke/delete, `platform.ts`), which is the only
+// version that survives a reload or is visible to anyone else.

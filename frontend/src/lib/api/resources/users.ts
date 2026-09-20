@@ -1,7 +1,6 @@
 import type { User } from "@/types/domain";
 import { trpcClient } from "@/lib/trpc/client";
 import { toApiError } from "@/lib/trpc/mapError";
-import { ApiError } from "@/lib/api/errors";
 
 /**
  * Real backend-backed users resource client. `orgId` arguments from the old
@@ -49,23 +48,39 @@ export async function listUsers(): Promise<User[]> {
   }
 }
 
-export interface InviteEntry {
-  email: string;
-  roleId: string;
-  departmentId?: string;
-  teamId?: string;
-}
-
 export interface InviteResult {
   email: string;
-  status: "invited" | "already_member";
+  status: "invited" | "failed";
+  /** Returned only on success — the generated temp password, shown once so
+   * it can be relayed by hand if the welcome email doesn't land. */
+  tempPassword?: string;
+  /** False when the account was created but the welcome email was rejected
+   * (an unverified sending domain is the usual cause) — the account works
+   * either way, but the password then has to be passed along by hand. */
+  emailSent?: boolean;
+  /** Returned only on failure, e.g. the address is already in use. */
+  message?: string;
 }
 
-/** No real-backend equivalent yet — see `users.ts` router's comment on
- * `invite`. Throws rather than silently no-opping so the Invite screen's
- * error state is visible instead of looking like a hang. */
-export async function inviteUsers(): Promise<InviteResult[]> {
-  throw new ApiError("validation", "Inviting new members isn't available yet — check back soon.");
+/**
+ * Adds each person to the caller's own org. Sequential, not parallel, and
+ * per-person fault tolerant: one bad address (already registered, say)
+ * reports against just that row instead of failing everyone else's
+ * invite — the dialog shows the outcome line by line.
+ */
+export async function inviteUsers(
+  entries: { name: string; email: string; roleId: string | null }[],
+): Promise<InviteResult[]> {
+  const results: InviteResult[] = [];
+  for (const entry of entries) {
+    try {
+      const { tempPassword, emailSent } = await trpcClient.users.create.mutate(entry);
+      results.push({ email: entry.email, status: "invited", tempPassword, emailSent });
+    } catch (err) {
+      results.push({ email: entry.email, status: "failed", message: toApiError(err).message });
+    }
+  }
+  return results;
 }
 
 /** "Change role" sets the account's one non-Learner (Manage-mode) role —

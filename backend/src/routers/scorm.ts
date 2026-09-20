@@ -116,6 +116,14 @@ export const scormRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This package isn't ready yet." });
       }
 
+      // Opportunistic sweep: these rows are single-session credentials that
+      // nothing ever reads once expired, and minting one is the natural
+      // moment to clear this learner's dead ones — cheaper than a cron for
+      // a table that only grows by one row per launch.
+      await ctx.rawDb.scormLaunchToken.deleteMany({
+        where: { userId: ctx.session.userId, expiresAt: { lt: new Date() } },
+      });
+
       const token = crypto.randomBytes(24).toString("base64url");
       await ctx.rawDb.scormLaunchToken.create({
         data: {

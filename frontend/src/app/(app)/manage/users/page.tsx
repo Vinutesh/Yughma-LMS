@@ -157,23 +157,45 @@ function InviteDialog({
   roles: Role[];
   onDone: () => void;
 }) {
-  const [rows, setRows] = useState<{ email: string; roleId: string }[]>([]);
+  const [rows, setRows] = useState<{ email: string; name: string; roleId: string }[]>([]);
   const [draft, setDraft] = useState("");
   const [results, setResults] = useState<usersApi.InviteResult[] | null>(null);
   const learnerRole = roles.find((r) => r.name === "Learner");
 
   const mutation = useMutation({
-    mutationFn: () => usersApi.inviteUsers(),
+    mutationFn: () =>
+      usersApi.inviteUsers(
+        rows.map((r) => ({
+          name: r.name.trim() || r.email.split("@")[0],
+          email: r.email,
+          // "Learner" is implicit on every account and isn't a real
+          // assignable manage-mode role — sending it would just fail the
+          // backend's own role lookup, so it maps to null.
+          roleId: r.roleId === learnerRole?.id ? null : r.roleId,
+        })),
+      ),
     onSuccess: (res) => {
       setResults(res);
       onDone();
     },
   });
 
+  /** A display name is required on the account, so seed it from the email's
+   * local part ("manish.naik@..." → "Manish Naik") and leave it editable
+   * rather than silently inventing one that can't be corrected. */
+  function nameFromEmail(email: string): string {
+    return email
+      .split("@")[0]
+      .split(/[._-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
   function addDraft() {
-    const v = draft.trim();
+    const v = draft.trim().toLowerCase();
     if (v && v.includes("@") && !rows.some((r) => r.email === v) && learnerRole) {
-      setRows([...rows, { email: v, roleId: learnerRole.id }]);
+      setRows([...rows, { email: v, name: nameFromEmail(v), roleId: learnerRole.id }]);
       setDraft("");
     }
   }
@@ -200,11 +222,18 @@ function InviteDialog({
           {rows.map((r) => {
             const result = results?.find((x) => x.email === r.email);
             return (
-              <div key={r.email} className="flex items-center gap-2 text-sm">
-                <span className="flex-1 text-text-secondary">{r.email}</span>
-                {result?.status === "already_member" ? (
-                  <span className="text-[11px] font-medium text-warning">Already a member</span>
-                ) : (
+              <div key={r.email} className="flex flex-col gap-1 border-b border-border pb-1.5 last:border-0">
+                <div className="flex items-center gap-2 text-sm">
+                  <input
+                    value={r.name}
+                    onChange={(e) =>
+                      setRows(rows.map((x) => (x.email === r.email ? { ...x, name: e.target.value } : x)))
+                    }
+                    placeholder="Name"
+                    aria-label={`Name for ${r.email}`}
+                    className="w-32 rounded border border-border bg-surface px-1.5 py-1 text-xs"
+                  />
+                  <span className="flex-1 truncate text-text-secondary">{r.email}</span>
                   <select
                     value={r.roleId}
                     onChange={(e) =>
@@ -218,13 +247,24 @@ function InviteDialog({
                       </option>
                     ))}
                   </select>
+                  <button
+                    className="text-text-tertiary hover:text-danger"
+                    onClick={() => setRows(rows.filter((x) => x.email !== r.email))}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {result?.status === "failed" && (
+                  <p className="text-[11px] font-medium text-danger">{result.message}</p>
                 )}
-                <button
-                  className="text-text-tertiary hover:text-danger"
-                  onClick={() => setRows(rows.filter((x) => x.email !== r.email))}
-                >
-                  ✕
-                </button>
+                {result?.status === "invited" && (
+                  <p className={`text-[11px] ${result.emailSent ? "text-success" : "text-warning"}`}>
+                    {result.emailSent
+                      ? "Account created — welcome email sent. Temporary password: "
+                      : "Account created, but the email couldn't be sent — send them this password yourself: "}
+                    <span className="font-mono font-semibold text-text-secondary">{result.tempPassword}</span>
+                  </p>
+                )}
               </div>
             );
           })}
@@ -242,16 +282,21 @@ function InviteDialog({
             className="rounded px-1.5 py-1.5 text-sm outline-none placeholder:text-text-tertiary"
           />
         </div>
+        <p className="text-xs text-text-tertiary">
+          Each person gets a welcome email with a temporary password they&apos;re required to change
+          on first login. The password also shows here once sent, in case the email doesn&apos;t
+          reach them.
+        </p>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
-            Cancel
+            {results ? "Done" : "Cancel"}
           </Button>
           <Button
             disabled={rows.length === 0}
             loading={mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            Send invites
+            {results ? "Send again" : "Send invites"}
           </Button>
         </DialogFooter>
       </DialogContent>

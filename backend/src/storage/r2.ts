@@ -1,4 +1,11 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -75,6 +82,38 @@ export async function getDownloadUrl(storageKey: string): Promise<string> {
 
 export async function deleteObject(storageKey: string): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: storageKey }));
+}
+
+/**
+ * Deletes every object under a prefix, in batches of up to 1000 (the S3
+ * API's own per-request cap). Exists for SCORM packages specifically: one
+ * upload extracts into hundreds of individual objects under
+ * `{orgId}/scorm/{assetId}/`, and deleting only the asset's own
+ * `storageKey` — which is all `content.delete` used to do — left that whole
+ * tree stranded in the bucket forever, billed as storage nobody could ever
+ * reach again. Returns the number deleted so callers can log it.
+ */
+export async function deletePrefix(prefix: string): Promise<number> {
+  const client = getClient();
+  const Bucket = getBucket();
+  let continuationToken: string | undefined;
+  let deleted = 0;
+
+  do {
+    const listed = await client.send(
+      new ListObjectsV2Command({ Bucket, Prefix: prefix, ContinuationToken: continuationToken }),
+    );
+    const keys = (listed.Contents ?? []).map((o) => o.Key).filter((k): k is string => !!k);
+    if (keys.length > 0) {
+      await client.send(
+        new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } }),
+      );
+      deleted += keys.length;
+    }
+    continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return deleted;
 }
 
 /**

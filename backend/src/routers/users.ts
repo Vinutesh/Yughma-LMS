@@ -1,6 +1,9 @@
+import crypto from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, requirePermission } from "../trpc/trpc.js";
+import { hashPassword } from "../auth/password.js";
+import { sendWelcomeEmail } from "../email/resend.js";
 
 /**
  * Mirrors `frontend/src/lib/api/resources/users.ts` procedure-for-procedure.
@@ -87,10 +90,59 @@ export const usersRouter = router({
       }),
     ),
 
-  // `invite` is intentionally not implemented yet: the mock's version could
-  // fabricate an active account with no password because it shared one
-  // global mock password for every user. A real invite needs its own
-  // `Invitation` model (token, expiry, accept-time password set) wired to
-  // the frontend's existing Accept Invitation screen — a separate migration,
-  // not a one-line port of the mock function. See BACKEND_PLAN.md.
+  /**
+   * Adds someone to the caller's OWN org — the counterpart to
+   * `platform.createClientUser`, which only ever creates accounts inside a
+   * *client* company and so could never add a colleague to Yughma itself.
+   * Same mechanics as that one deliberately: a generated temp password
+   * returned in the response (never persisted in plaintext) plus a
+   * best-effort welcome email, and `mustChangePassword` so the relayed
+   * password can't stay the permanent one.
+   *
+   * This replaces the old `invite` stub, which threw "not available yet"
+   * because a real invite was scoped as its own `Invitation` model with
+   * token/expiry/accept-time password set. That's still the nicer flow, but
+   * it needs a migration and an accept screen; this reuses the
+   * create-with-temp-password path that already works end to end, so adding
+   * people works today rather than after a separate project.
+   */
+  create: requirePermission("users", "manage")
+    .input(z.object({ name: z.string().min(1), email: z.string().email(), roleId: z.string().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const email = input.email.trim().toLowerCase();
+
+      // Email is unique per org in the schema, but an address already used
+      // in *another* org would still collide at login (which looks users up
+      // by email alone), so this checks globally via `rawDb`, not just the
+      // caller's own tenant.
+      const existing = await ctx.rawDb.user.findFirst({ where: { email } });
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "An account already exists for this email." });
+
+      if (input.roleId) {
+        const role = await ctx.db.role.findUnique({ where: { id: input.roleId } });
+        if (!role) throw new TRPCError({ code: "NOT_FOUND", message: "Role not found." });
+      }
+
+      const tempPassword = crypto.randomBytes(9).toString("base64url");
+      const user = await ctx.db.user.create({
+        data: {
+          orgId: ctx.session.orgId,
+          name: input.name.trim(),
+          email,
+          passwordHash: await hashPassword(tempPassword),
+          mustChangePassword: true,
+        },
+      });
+      if (input.roleId) {
+        await ctx.db.userRole.create({ data: { userId: user.id, roleId: input.roleId } });
+      }
+
+      // Reported back rather than assumed: if the send failed (an
+      // unverified sending domain will reject every address but the
+      // account owner's), the admin needs to know to pass the temp
+      // password along themselves.
+      const emailSent = await sendWelcomeEmail(user.email, user.name, tempPassword);
+
+      return { user, tempPassword, emailSent };
+    }),
 });

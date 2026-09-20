@@ -67,7 +67,15 @@ export function AssetDetailPanel({
 
         <div className="mt-4 flex h-32 items-center justify-center overflow-hidden rounded-md bg-surface-alt text-xs text-text-tertiary">
           {!asset.url ? (
-            "Preview unavailable — file storage isn't configured yet"
+            // A SCORM package has no downloadable archive by design: the
+            // original .zip is discarded once it's been extracted (keeping
+            // it meant paying storage twice for a file nothing ever reads
+            // again), so it plays from its extracted form or not at all.
+            asset.kind === "scorm" ? (
+              "Extracted and ready — SCORM packages play inside the course, not from here"
+            ) : (
+              "Preview unavailable — file storage isn't configured yet"
+            )
           ) : asset.kind === "video" ? (
             <video src={asset.url} controls className="h-full w-full object-contain" />
           ) : asset.kind === "image" ? (

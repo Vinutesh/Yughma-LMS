@@ -4,7 +4,6 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useQueryClient } from "@tanstack/react-query";
 import { Clock } from "lucide-react";
 import { useSessionStore } from "@/state/sessionStore";
-import { useDirectoryStore } from "@/state/directoryStore";
 
 /**
  * Dev-only — shifts the org's trial deadline so the three time-dependent Trial
@@ -25,17 +24,17 @@ function daysFromNow(days: number) {
 export function DevTrialMenu() {
   const session = useSessionStore((s) => s.session);
   const patchSessionOrg = useSessionStore((s) => s.patchSessionOrg);
-  const updateOrg = useDirectoryStore((s) => s.updateOrg);
   const qc = useQueryClient();
 
   if (!session) return null;
-  const orgId = session.org.id;
 
   const setTrial = (days: number) => {
     // Clearing the plan too, otherwise a previously chosen plan keeps the
-    // expired/banner states permanently suppressed.
+    // expired/banner states permanently suppressed. This only patches the
+    // session's own copy of the org — it used to also write to a mock
+    // directory store, which nothing has read since the real backend
+    // landed.
     const patch = { trialEndsAt: daysFromNow(days), plan: undefined, planChosenAt: undefined };
-    updateOrg(orgId, patch);
     patchSessionOrg(patch);
     qc.invalidateQueries({ queryKey: ["planState"] });
   };

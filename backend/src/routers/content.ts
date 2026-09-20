@@ -4,6 +4,7 @@ import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
 import {
   buildStorageKey,
   deleteObject,
+  deletePrefix,
   getDownloadUrl,
   getObjectBuffer,
   getUploadUrl,
@@ -264,13 +265,31 @@ export const contentRouter = router({
         extracted.files.map((f) => putObjectBuffer(`${prefix}/${f.relativePath}`, f.data, f.contentType)),
       );
 
+      // The raw .zip has served its only purpose now that the extracted
+      // tree is in place — nothing ever reads it again (the player serves
+      // `{orgId}/scorm/{assetId}/...`, never the archive), so keeping it
+      // was just paying storage twice for every package. Clearing
+      // `storageKey` alongside the delete keeps the row honest: no other
+      // code path then tries to mint a URL for an object that's gone.
       await Promise.all([
-        ctx.db.asset.update({ where: { id: asset.id }, data: { scormLaunchPath: extracted.launchPath } }),
+        ctx.db.asset.update({
+          where: { id: asset.id },
+          data: { scormLaunchPath: extracted.launchPath, storageKey: null },
+        }),
         ctx.db.lesson.updateMany({
           where: { assetId: asset.id, contentType: "scorm" },
           data: { scormStatus: "ready" },
         }),
       ]);
+
+      try {
+        await deleteObject(asset.storageKey);
+      } catch (err) {
+        // Best-effort, same reasoning as `delete` below — a stray archive
+        // is a cost concern, not a correctness one, and the extraction
+        // itself already succeeded.
+        console.error(`Failed to delete extracted SCORM archive ${asset.storageKey}:`, err);
+      }
 
       return { ok: true, launchPath: extracted.launchPath };
     }),
@@ -304,11 +323,17 @@ export const contentRouter = router({
       // concern, not a data-integrity one (the row driving the app's own
       // behavior is already gone), so a storage-side failure here shouldn't
       // fail the whole request.
-      if (asset.storageKey && isStorageConfigured()) {
+      if (isStorageConfigured()) {
         try {
-          await deleteObject(asset.storageKey);
+          if (asset.storageKey) await deleteObject(asset.storageKey);
+          // A SCORM package is hundreds of extracted objects under its own
+          // prefix, not just the one `storageKey` — deleting only the latter
+          // (all this used to do) stranded that whole tree in the bucket
+          // permanently. Safe for every kind: a non-SCORM asset simply has
+          // nothing under this prefix.
+          if (asset.kind === "scorm") await deletePrefix(`${asset.orgId}/scorm/${asset.id}/`);
         } catch (err) {
-          console.error(`Failed to delete R2 object ${asset.storageKey}:`, err);
+          console.error(`Failed to delete R2 objects for asset ${asset.id}:`, err);
         }
       }
       return { ok: true };
