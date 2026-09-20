@@ -83,6 +83,20 @@ export async function inviteUsers(
   return results;
 }
 
+/**
+ * Issues a fresh temporary password for someone in the admin's own org —
+ * the only recovery path there is, since self-service reset doesn't exist
+ * yet. Returns the password to relay by hand, plus whether the email
+ * actually went out.
+ */
+export async function resetUserPassword(userId: string): Promise<{ tempPassword: string; emailSent: boolean }> {
+  try {
+    return await trpcClient.users.resetPassword.mutate({ userId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
 /** "Change role" sets the account's one non-Learner (Manage-mode) role —
  * Learner itself stays implicit on every account. Passing `null` clears any
  * Manage-mode role, the real equivalent of the mock's `"role_learner"`

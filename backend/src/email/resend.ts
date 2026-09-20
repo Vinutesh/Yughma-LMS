@@ -83,6 +83,17 @@ export async function sendWelcomeEmail(to: string, name: string, tempPassword: s
   );
 }
 
+export async function sendPasswordResetEmail(to: string, name: string, tempPassword: string): Promise<boolean> {
+  return send(
+    to,
+    "Your Yughma LMS password was reset",
+    `<p>Hi ${escapeHtml(name)},</p>
+     <p>An administrator reset your Yughma LMS password.</p>
+     <p><strong>Temporary password:</strong> ${escapeHtml(tempPassword)}</p>
+     <p>You'll be asked to choose a new one right after you <a href="${appUrl()}/login">log in</a>.</p>`,
+  );
+}
+
 export async function sendAccessGrantedEmail(to: string, name: string, courseTitle: string): Promise<boolean> {
   return send(
     to,

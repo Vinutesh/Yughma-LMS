@@ -3,7 +3,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, requirePermission } from "../trpc/trpc.js";
 import { hashPassword } from "../auth/password.js";
-import { sendWelcomeEmail } from "../email/resend.js";
+import { sendPasswordResetEmail, sendWelcomeEmail } from "../email/resend.js";
 
 /**
  * Mirrors `frontend/src/lib/api/resources/users.ts` procedure-for-procedure.
@@ -144,5 +144,43 @@ export const usersRouter = router({
       const emailSent = await sendWelcomeEmail(user.email, user.name, tempPassword);
 
       return { user, tempPassword, emailSent };
+    }),
+
+  /**
+   * Issues a fresh temporary password for someone in the caller's own org.
+   * This is the only password-recovery path that exists: `/forgot-password`
+   * is still an unbuilt placeholder and `auth.changePassword` requires an
+   * existing session, so before this, an account whose temp password never
+   * reached its owner (a bounced welcome email, a dialog closed before the
+   * password was copied) was permanently unreachable — a real dead end
+   * that had to be fixed by hand against the database.
+   *
+   * Returns the password so it can be relayed directly, exactly like
+   * `create` does, since the email is best-effort.
+   */
+  resetPassword: requirePermission("users", "manage")
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Scoped lookup: an admin can only ever reset someone inside their
+      // own org, never a cross-tenant account.
+      const user = await ctx.db.user.findUnique({ where: { id: input.userId } });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+
+      const tempPassword = crypto.randomBytes(9).toString("base64url");
+      await ctx.db.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await hashPassword(tempPassword), mustChangePassword: true },
+      });
+
+      // Any active session belongs to whoever held the *old* password —
+      // a reset exists precisely because that may be the wrong person, so
+      // they're revoked rather than left running.
+      await ctx.rawDb.authSession.deleteMany({ where: { userId: user.id } });
+      // Clear the lockout counter too: someone locked out from failed
+      // attempts shouldn't still be blocked with a brand-new password.
+      await ctx.rawDb.loginAttempt.deleteMany({ where: { email: user.email } });
+
+      const emailSent = await sendPasswordResetEmail(user.email, user.name, tempPassword);
+      return { tempPassword, emailSent };
     }),
 });

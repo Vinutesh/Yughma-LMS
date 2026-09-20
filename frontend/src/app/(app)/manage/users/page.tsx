@@ -360,6 +360,12 @@ function UserDetail({
       usersApi.updateUserAssignment(user.id, vars.deptId || undefined, vars.teamId || undefined),
     onSuccess: onFieldChanged,
   });
+  /** Deliberately not auto-dismissed: the temp password is shown exactly
+   * once and there's no way to retrieve it afterwards, so it stays on
+   * screen until the drawer closes. */
+  const resetPassword = useMutation({
+    mutationFn: () => usersApi.resetUserPassword(user.id),
+  });
   const statusMutation = useMutation({
     mutationFn: () =>
       user.status === "active" ? usersApi.deactivateUser(user.id) : usersApi.reactivateUser(user.id),
@@ -454,13 +460,31 @@ function UserDetail({
           </p>
         )}
 
-        <Button
-          variant={user.status === "active" ? "destructive" : "secondary"}
-          loading={statusMutation.isPending}
-          onClick={() => statusMutation.mutate()}
-        >
-          {user.status === "active" ? "Deactivate user" : "Reactivate user"}
-        </Button>
+        {resetPassword.data && (
+          <p
+            className={`rounded-md p-2.5 text-xs ${
+              resetPassword.data.emailSent ? "bg-success-bg text-success" : "bg-warning-bg text-warning"
+            }`}
+          >
+            {resetPassword.data.emailSent
+              ? "Password reset — an email with the temporary password is on its way. It's also here: "
+              : "Password reset, but the email couldn't be sent — pass this along yourself: "}
+            <span className="font-mono font-semibold">{resetPassword.data.tempPassword}</span>
+          </p>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" loading={resetPassword.isPending} onClick={() => resetPassword.mutate()}>
+            Reset password
+          </Button>
+          <Button
+            variant={user.status === "active" ? "destructive" : "secondary"}
+            loading={statusMutation.isPending}
+            onClick={() => statusMutation.mutate()}
+          >
+            {user.status === "active" ? "Deactivate user" : "Reactivate user"}
+          </Button>
+        </div>
       </div>
     </>
   );
