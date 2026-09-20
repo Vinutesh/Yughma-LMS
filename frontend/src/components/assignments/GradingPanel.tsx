@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Flag } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/Drawer";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -29,6 +30,7 @@ export function GradingPanel({
   );
   const [feedback, setFeedback] = useState(submission?.feedback ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["submissions", assignment.id] });
@@ -55,6 +57,15 @@ export function GradingPanel({
   const toggleFlag = useMutation({
     mutationFn: () => assignmentsApi.setSubmissionFlag(submission!.id, !submission!.flagged),
     onSuccess: invalidate,
+  });
+
+  const deleteSubmission = useMutation({
+    mutationFn: () => assignmentsApi.deleteSubmission(submission!.id),
+    onSuccess: () => {
+      invalidate();
+      setConfirmDelete(false);
+      onClose();
+    },
   });
 
   if (!submission) return null;
@@ -125,16 +136,41 @@ export function GradingPanel({
             />
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Button size="sm" variant="ghost" onClick={() => toggleFlag.mutate()}>
-              <Flag className="size-3.5" />
-              {submission.flagged ? "Unflag" : "Flag for later"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => toggleFlag.mutate()}>
+                <Flag className="size-3.5" />
+                {submission.flagged ? "Unflag" : "Flag for later"}
+              </Button>
+              <Button size="sm" variant="ghost" className="text-danger" onClick={() => setConfirmDelete(true)}>
+                Delete
+              </Button>
+            </div>
             <Button size="sm" disabled={score === ""} loading={grade.isPending} onClick={() => grade.mutate()}>
               Save grade
             </Button>
           </div>
         </div>
       </DrawerContent>
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {submission.learnerName}&apos;s submission?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            This permanently removes their submitted response and any score/feedback already
+            given. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" loading={deleteSubmission.isPending} onClick={() => deleteSubmission.mutate()}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Drawer>
   );
 }

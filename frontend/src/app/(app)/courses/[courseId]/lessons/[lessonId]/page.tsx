@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ExternalLink, FileText, Film, Package, Lock } from "lucide-react";
-import { ScormPlayer } from "@/components/scorm/ScormPlayer";
 import { CourseVideoPlayer } from "@/components/courses/CourseVideoPlayer";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/patterns/EmptyState";
@@ -28,6 +27,12 @@ export default function LessonViewerPage() {
   const [linkConfirm, setLinkConfirm] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const autoCompletedRef = useRef<string | null>(null);
+  const scormAdvancedRef = useRef<string | null>(null);
+  // Only set once the learner actually clicks "Start lesson" this visit —
+  // without it, simply reopening an already-completed SCORM lesson to
+  // review it would immediately trigger the same auto-advance a genuine
+  // just-now completion does.
+  const scormStartedRef = useRef<string | null>(null);
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["course", courseId, session?.user.id],
@@ -104,6 +109,32 @@ export default function LessonViewerPage() {
     toggleComplete.mutate(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enrolled, lesson?.id, lesson?.contentType, complete]);
+
+  // A SCORM lesson now finishes in its own tab (see the "Start lesson"
+  // button below) — this tab has no direct signal that it closed, so
+  // refetch on refocus, same as the assignment page's equivalent tab flow.
+  useEffect(() => {
+    function onFocus() {
+      qc.invalidateQueries({ queryKey: ["course", courseId] });
+      qc.invalidateQueries({ queryKey: ["myCourses"] });
+    }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [courseId, qc]);
+
+  // Once that refetch shows the SCORM lesson actually completed (the
+  // webhook already recorded it server-side before this tab regained
+  // focus), trigger the same "moving on" transition a video's onEnded
+  // would — guarded by a ref so returning to an already-advanced lesson
+  // doesn't replay it.
+  useEffect(() => {
+    if (lesson?.contentType !== "scorm" || !complete) return;
+    if (scormStartedRef.current !== lesson.id) return;
+    if (scormAdvancedRef.current === lesson.id) return;
+    scormAdvancedRef.current = lesson.id;
+    startAdvancing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson?.id, lesson?.contentType, complete]);
 
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading lesson...</p>;
   if (!course) return <p className="p-8 text-sm text-text-tertiary">Course not found.</p>;
@@ -222,11 +253,22 @@ export default function LessonViewerPage() {
               <p className="text-xs text-text-tertiary">Check back in a moment.</p>
             </Card>
           ) : (
-            <ScormPlayer
-              target={{ lessonId: lesson.id }}
-              title={lesson.title}
-              onComplete={startAdvancing}
-            />
+            <Card className="flex flex-col items-center gap-3 p-8 text-center">
+              <p className="text-sm text-text-secondary">
+                {complete
+                  ? "You've finished this. Reopen it any time to review."
+                  : "This opens in a new, fullscreen tab. Finish it there — this page updates on its own once you're done and back here."}
+              </p>
+              <Button
+                onClick={() => {
+                  scormStartedRef.current = lesson.id;
+                  window.open(`/courses/${courseId}/lessons/${lesson.id}/play`, "_blank");
+                }}
+              >
+                <ExternalLink className="mr-1.5 size-3.5" aria-hidden />
+                {complete ? "Reopen lesson" : "Start lesson"}
+              </Button>
+            </Card>
           )}
         </>
       )}

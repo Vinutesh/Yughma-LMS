@@ -222,7 +222,7 @@ function CreateAssignmentDialog({
   const [submissionType, setSubmissionType] = useState<SubmissionType>("text");
   const [points, setPoints] = useState("20");
   const [isQualifying, setIsQualifying] = useState(false);
-  const [passingScorePercent, setPassingScorePercent] = useState("80");
+  const [passingScorePercent, setPassingScorePercent] = useState("85");
   const [assetId, setAssetId] = useState<string | undefined>(undefined);
   const [assetName, setAssetName] = useState<string | undefined>(undefined);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -253,7 +253,7 @@ function CreateAssignmentDialog({
       setInstructions("");
       setDueAt("");
       setIsQualifying(false);
-      setPassingScorePercent("80");
+      setPassingScorePercent("85");
       setAssetId(undefined);
       setAssetName(undefined);
       setError(null);

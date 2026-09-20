@@ -90,10 +90,12 @@ function OverlayText({ position, text }: { position: { x: number; y: number }; t
   );
 }
 
+/** DD/MM/YYYY, per client request — kept the same exported name since every
+ * caller (certificates page, manage certificates, verify page) just wants
+ * "the certificate date," not specifically a long-form one anymore. */
 export function formatLongDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const d = new Date(iso);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
 }

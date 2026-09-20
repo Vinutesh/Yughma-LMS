@@ -508,7 +508,7 @@ model Assignment {
   isQualifying     Boolean        @default(false)
   /// Percent of `pointsPossible` a graded submission must reach for this
   /// assignment to count as passed, when it's the qualifying one.
-  passingScorePercent Int         @default(80)
+  passingScorePercent Int         @default(85)
   createdByUserId  String
   createdAt        DateTime       @default(now())
 

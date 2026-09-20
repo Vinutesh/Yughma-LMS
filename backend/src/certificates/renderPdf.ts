@@ -35,7 +35,14 @@ export interface CertificatePdfInput {
  */
 export async function renderCertificatePdf(input: CertificatePdfInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  const dateLabel = input.issuedAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  // DD/MM/YYYY, matching CertificateFace.tsx's own `formatLongDate` — the
+  // PDF is the print/download counterpart to that on-screen view, not a
+  // separately-designed layout, so the date format has to match.
+  const dateLabel = [
+    String(input.issuedAt.getDate()).padStart(2, "0"),
+    String(input.issuedAt.getMonth() + 1).padStart(2, "0"),
+    input.issuedAt.getFullYear(),
+  ].join("/");
 
   if (input.backgroundStorageKey && input.overlayLayout) {
     const imageBytes = await getObjectBuffer(input.backgroundStorageKey);

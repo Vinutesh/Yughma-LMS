@@ -224,7 +224,7 @@ export const assignmentsRouter = router({
           submissionType: input.submissionType,
           pointsPossible: input.pointsPossible,
           isQualifying: input.isQualifying ?? false,
-          passingScorePercent: input.passingScorePercent ?? 80,
+          passingScorePercent: input.passingScorePercent ?? 85,
           createdByUserId: ctx.session.userId,
         },
       });
@@ -403,6 +403,18 @@ export const assignmentsRouter = router({
       const resolved = await resolveSubmission(ctx.db, input.submissionId);
       if (!resolved) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found." });
       return ctx.db.submission.update({ where: { id: input.submissionId }, data: { flagged: input.flagged } });
+    }),
+
+  /** Permanent — removes a learner's submitted response entirely (their
+   * text/file, and any score/feedback already given). Same `courses:edit`
+   * gate as grading, since only platform staff ever hold it. */
+  deleteSubmission: requirePermission("courses", "edit")
+    .input(z.object({ submissionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const resolved = await resolveSubmission(ctx.db, input.submissionId);
+      if (!resolved) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found." });
+      await ctx.db.submission.delete({ where: { id: input.submissionId } });
+      return { ok: true };
     }),
 
   /** Assignments across every course the learner is actively enrolled in. */

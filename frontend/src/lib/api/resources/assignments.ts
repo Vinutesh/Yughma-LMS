@@ -177,6 +177,15 @@ export async function setSubmissionFlag(submissionId: string, flagged: boolean):
   }
 }
 
+/** Permanent — removes the learner's submitted response entirely. */
+export async function deleteSubmission(submissionId: string): Promise<void> {
+  try {
+    await trpcClient.assignments.deleteSubmission.mutate({ submissionId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
 export interface LearnerAssignment extends AssignmentSummary {
   submission: Submission | null;
 }
