@@ -41,6 +41,19 @@ export default function ManageAssignmentsPage() {
     },
   });
 
+  /** Marking one assignment qualifying for a course automatically unmarks
+   * whichever one held that spot before (enforced server-side) — refetch
+   * the whole list rather than patch just this row, so that demotion shows
+   * up too. */
+  const toggleQualifying = useMutation({
+    mutationFn: ({ id, isQualifying }: { id: string; isQualifying: boolean }) =>
+      assignmentsApi.updateAssignment(id, { isQualifying }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["assignments"] }),
+    onError: (err) => {
+      if (err instanceof ApiError) setError(err.message);
+    },
+  });
+
   if (!canEdit) return <AccessDenied title="Assignments" />;
 
   return (
@@ -70,6 +83,7 @@ export default function ManageAssignmentsPage() {
               <TableTh>Course</TableTh>
               <TableTh>Due</TableTh>
               <TableTh>Ungraded</TableTh>
+              <TableTh>Certificate</TableTh>
               <TableTh className="w-10" />
             </TableRow>
           </TableHead>
@@ -101,9 +115,24 @@ export default function ManageAssignmentsPage() {
                   )}
                 </TableTd>
                 <TableTd>
+                  {a.isQualifying ? (
+                    <Badge variant="success">Qualifying · {a.passingScorePercent}% to pass</Badge>
+                  ) : (
+                    <span className="text-xs text-text-tertiary">—</span>
+                  )}
+                </TableTd>
+                <TableTd>
                   <Menu>
                     <MenuTrigger label={`Actions for ${a.title}`} />
                     <MenuContent>
+                      <MenuItem
+                        onSelect={() => {
+                          setError(null);
+                          toggleQualifying.mutate({ id: a.id, isQualifying: !a.isQualifying });
+                        }}
+                      >
+                        {a.isQualifying ? "Unmark as qualifying assignment" : "Mark as qualifying assignment"}
+                      </MenuItem>
                       <MenuItem
                         destructive
                         onSelect={() => {
@@ -142,6 +171,8 @@ function CreateAssignmentDialog({
   const [dueAt, setDueAt] = useState("");
   const [submissionType, setSubmissionType] = useState<SubmissionType>("text");
   const [points, setPoints] = useState("20");
+  const [isQualifying, setIsQualifying] = useState(false);
+  const [passingScorePercent, setPassingScorePercent] = useState("80");
   const [error, setError] = useState<string | null>(null);
 
   const { data: courses = [] } = useQuery({
@@ -158,6 +189,8 @@ function CreateAssignmentDialog({
         dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
         submissionType,
         pointsPossible: Number(points),
+        isQualifying,
+        passingScorePercent: Number(passingScorePercent),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["assignments"] });
@@ -165,6 +198,8 @@ function CreateAssignmentDialog({
       setTitle("");
       setInstructions("");
       setDueAt("");
+      setIsQualifying(false);
+      setPassingScorePercent("80");
       setError(null);
     },
     onError: (err) => {
@@ -246,6 +281,37 @@ function CreateAssignmentDialog({
                 onChange={(e) => setPoints(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={isQualifying}
+                onChange={(e) => setIsQualifying(e.target.checked)}
+                className="size-4 rounded border-border"
+              />
+              Qualifying assignment for this course&apos;s certificate
+            </label>
+            <p className="text-xs text-text-tertiary">
+              If the course has a certificate, it won&apos;t be issued until this assignment is
+              graded at or above the passing score below — even if every lesson is complete. Only
+              one qualifying assignment is allowed per course.
+            </p>
+            {isQualifying && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="a-passing">Passing score (%)</Label>
+                <Input
+                  id="a-passing"
+                  type="number"
+                  min={1}
+                  max={100}
+                  className="w-24"
+                  value={passingScorePercent}
+                  onChange={(e) => setPassingScorePercent(e.target.value)}
+                />
+              </div>
+            )}
           </div>
         </div>
 

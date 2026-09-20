@@ -461,6 +461,15 @@ model Assignment {
   dueAt            DateTime?
   submissionType   SubmissionType
   pointsPossible   Int
+  /// At most one qualifying assignment per course (enforced in
+  /// `routers/assignments.ts`'s create/update, not here) — the one
+  /// submission whose graded score gates that course's certificate. A
+  /// course with no qualifying assignment issues its certificate on lesson
+  /// completion alone, unchanged from before this field existed.
+  isQualifying     Boolean        @default(false)
+  /// Percent of `pointsPossible` a graded submission must reach for this
+  /// assignment to count as passed, when it's the qualifying one.
+  passingScorePercent Int         @default(80)
   createdByUserId  String
   createdAt        DateTime       @default(now())
 

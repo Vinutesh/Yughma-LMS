@@ -1,0 +1,2 @@
+ALTER TABLE "Assignment" ADD COLUMN "isQualifying" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Assignment" ADD COLUMN "passingScorePercent" INTEGER NOT NULL DEFAULT 80;

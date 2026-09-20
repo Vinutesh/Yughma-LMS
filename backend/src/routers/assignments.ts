@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, requirePermission, protectedProcedure } from "../trpc/trpc.js";
 import type { ScopedDb } from "../trpc/context.js";
 import type { rawPrisma } from "../db.js";
+import { issueCertificate } from "./certificates.js";
 
 type RawDb = typeof rawPrisma;
 
@@ -108,6 +109,8 @@ export const assignmentsRouter = router({
         dueAt: z.coerce.date().optional(),
         submissionType: z.enum(["text", "file", "both"]),
         pointsPossible: z.number().int().max(100_000),
+        isQualifying: z.boolean().optional(),
+        passingScorePercent: z.number().int().min(1).max(100).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -118,6 +121,14 @@ export const assignmentsRouter = router({
       const course = await ctx.db.course.findUnique({ where: { id: input.courseId } });
       if (!course) throw new TRPCError({ code: "NOT_FOUND", message: "Course not found." });
 
+      // At most one qualifying assignment per course — making a new one the
+      // qualifying assignment demotes whichever one held that spot before,
+      // rather than leaving two assignments both claiming to gate the same
+      // certificate.
+      if (input.isQualifying) {
+        await ctx.db.assignment.updateMany({ where: { courseId: input.courseId, isQualifying: true }, data: { isQualifying: false } });
+      }
+
       return ctx.db.assignment.create({
         data: {
           orgId: ctx.session.orgId,
@@ -127,6 +138,8 @@ export const assignmentsRouter = router({
           dueAt: input.dueAt,
           submissionType: input.submissionType,
           pointsPossible: input.pointsPossible,
+          isQualifying: input.isQualifying ?? false,
+          passingScorePercent: input.passingScorePercent ?? 80,
           createdByUserId: ctx.session.userId,
         },
       });
@@ -141,6 +154,8 @@ export const assignmentsRouter = router({
         dueAt: z.coerce.date().nullable().optional(),
         submissionType: z.enum(["text", "file", "both"]).optional(),
         pointsPossible: z.number().int().max(100_000).optional(),
+        isQualifying: z.boolean().optional(),
+        passingScorePercent: z.number().int().min(1).max(100).optional(),
       }),
     )
     .mutation(async ({ ctx, input: { assignmentId, ...patch } }) => {
@@ -152,6 +167,13 @@ export const assignmentsRouter = router({
       }
       const assignment = await ctx.db.assignment.findUnique({ where: { id: assignmentId } });
       if (!assignment) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found." });
+
+      if (patch.isQualifying) {
+        await ctx.db.assignment.updateMany({
+          where: { courseId: assignment.courseId, isQualifying: true, id: { not: assignmentId } },
+          data: { isQualifying: false },
+        });
+      }
 
       return ctx.db.assignment.update({
         where: { id: assignmentId },
@@ -257,7 +279,7 @@ export const assignmentsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const resolved = await resolveSubmission(ctx.db, input.submissionId);
       if (!resolved) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found." });
-      const { assignment } = resolved;
+      const { assignment, submission } = resolved;
 
       if (Number.isNaN(input.score) || input.score < 0) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Enter a score of zero or more." });
@@ -269,7 +291,7 @@ export const assignmentsRouter = router({
         });
       }
 
-      return ctx.db.submission.update({
+      const updated = await ctx.db.submission.update({
         where: { id: input.submissionId },
         data: {
           score: input.score,
@@ -278,6 +300,40 @@ export const assignmentsRouter = router({
           gradedAt: new Date(),
         },
       });
+
+      // Grading a qualifying assignment can be what finally unlocks the
+      // learner's certificate — they may well have finished every lesson
+      // already and just been waiting on this score. Only fires once they've
+      // also passed the threshold AND the course itself is otherwise done;
+      // `issueCertificate` is idempotent, so re-grading someone who already
+      // passed (and was already issued a certificate) is a harmless no-op.
+      if (assignment.isQualifying && input.score / assignment.pointsPossible * 100 >= assignment.passingScorePercent) {
+        const [course, enrollment] = await Promise.all([
+          ctx.rawDb.course.findUnique({ where: { id: assignment.courseId } }),
+          ctx.rawDb.enrollment.findUnique({
+            where: { courseId_userId: { courseId: assignment.courseId, userId: submission.userId } },
+          }),
+        ]);
+        if (course?.certificateTemplateId && enrollment?.status === "completed") {
+          // The submission's learner is in their own client org, not
+          // necessarily the platform-org grader's — `ctx.rawDb` and the
+          // learner's own `orgId`, same cross-org pattern as
+          // `platform.ts`'s `grantCourseAccess`.
+          const learner = await ctx.rawDb.user.findUnique({ where: { id: submission.userId } });
+          if (learner) {
+            await issueCertificate(ctx.rawDb, {
+              orgId: learner.orgId,
+              userId: learner.id,
+              templateId: course.certificateTemplateId,
+              sourceKind: "course",
+              sourceId: course.id,
+              sourceTitle: course.title,
+            });
+          }
+        }
+      }
+
+      return updated;
     }),
 
   setFlag: requirePermission("courses", "edit")

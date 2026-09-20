@@ -45,6 +45,24 @@ async function hasEditPermission(db: ScopedDb, roleIds: string[]): Promise<boole
  * finishes a Learning Path for this user and issues the path's certificate.
  */
 
+/**
+ * Whether this user has cleared this course's qualifying-assignment
+ * requirement, if it has one — exported for `assignments.ts`'s `grade` to
+ * check the same thing at grading time (certificate issuance can be
+ * unlocked from either direction: finishing the last lesson after already
+ * being graded, or being graded after already finishing every lesson).
+ * Returns true when the course has no qualifying assignment at all, so a
+ * caller can gate certificate issuance on this alone regardless of whether
+ * a given course uses the feature.
+ */
+export async function qualifyingAssignmentPassed(rawDb: RawDb, courseId: string, userId: string): Promise<boolean> {
+  const qualifying = await rawDb.assignment.findFirst({ where: { courseId, isQualifying: true } });
+  if (!qualifying) return true;
+  const submission = await rawDb.submission.findFirst({ where: { assignmentId: qualifying.id, userId } });
+  if (!submission || submission.score === null) return false;
+  return (submission.score / qualifying.pointsPossible) * 100 >= qualifying.passingScorePercent;
+}
+
 async function summarize(rawDb: RawDb, course: { id: string; createdByUserId: string }) {
   const [author, moduleCount, lessons, enrolledCount] = await Promise.all([
     rawDb.user.findUnique({ where: { id: course.createdByUserId }, select: { name: true } }),
@@ -461,8 +479,14 @@ export const coursesRouter = router({
       // against `db`, it's a plain reference, so this is safe as-is. `ctx.db`
       // here is correct (not `rawDb`): the write must land in the caller's
       // own tenant.
+      //
+      // If the course has a qualifying assignment, finishing every lesson
+      // alone isn't enough — the certificate waits until that assignment is
+      // also graded at or above its passing score (checked the other way
+      // round in `assignments.ts`'s `grade`, for whichever order the two
+      // actually happen in).
       let certificateId: string | undefined;
-      if (course.certificateTemplateId) {
+      if (course.certificateTemplateId && (await qualifyingAssignmentPassed(ctx.rawDb, course.id, ctx.session.userId))) {
         const certificate = await issueCertificate(ctx.db, {
           orgId: ctx.session.orgId,
           userId: ctx.session.userId,

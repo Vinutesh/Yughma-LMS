@@ -53,6 +53,8 @@ export interface CreateAssignmentInput {
   dueAt?: string;
   submissionType: SubmissionType;
   pointsPossible: number;
+  isQualifying?: boolean;
+  passingScorePercent?: number;
 }
 
 export async function createAssignment(input: CreateAssignmentInput): Promise<Assignment> {
@@ -69,7 +71,12 @@ export async function createAssignment(input: CreateAssignmentInput): Promise<As
 
 export async function updateAssignment(
   assignmentId: string,
-  patch: Partial<Pick<Assignment, "title" | "instructions" | "dueAt" | "submissionType" | "pointsPossible">>,
+  patch: Partial<
+    Pick<
+      Assignment,
+      "title" | "instructions" | "dueAt" | "submissionType" | "pointsPossible" | "isQualifying" | "passingScorePercent"
+    >
+  >,
 ): Promise<void> {
   try {
     await trpcClient.assignments.update.mutate({

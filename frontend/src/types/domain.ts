@@ -269,6 +269,13 @@ export interface Assignment {
   dueAt?: string;
   submissionType: SubmissionType;
   pointsPossible: number;
+  /** At most one qualifying assignment per course — the submission whose
+   * graded score gates that course's certificate, instead of the
+   * certificate issuing on lesson completion alone. */
+  isQualifying: boolean;
+  /** Percent of `pointsPossible` a graded submission must reach to count as
+   * passed, when this is the qualifying assignment. */
+  passingScorePercent: number;
   createdByUserId: string;
   createdAt: string;
 }
