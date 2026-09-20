@@ -15,7 +15,9 @@ import { GradingPanel } from "@/components/assignments/GradingPanel";
 
 export default function SubmissionQueuePage() {
   const { assignmentId } = useParams<{ assignmentId: string }>();
-  const canEdit = usePermission("assignments", "edit");
+  // Same resource the backend actually checks — see the list page's own
+  // comment on this.
+  const canEdit = usePermission("courses", "edit");
   const [gradingId, setGradingId] = useState<string | null>(null);
 
   const { data: assignment } = useQuery({

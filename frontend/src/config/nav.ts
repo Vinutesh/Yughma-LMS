@@ -72,7 +72,7 @@ export const MANAGE_NAV: NavSection[] = [
     items: [
       { label: "Course Access", href: "/manage/enrollments", requires: { resource: RESOURCES.courses, action: "edit" }, platformOnly: true },
       { label: "Path Access", href: "/manage/path-access", requires: { resource: RESOURCES.courses, action: "edit" }, platformOnly: true },
-      { label: "Assignments", href: "/manage/assignments", requires: { resource: RESOURCES.assignments, action: "edit" } },
+      { label: "Assignments", href: "/manage/assignments", requires: { resource: RESOURCES.courses, action: "edit" } },
       { label: "Certificates", href: "/manage/certificates", requires: { resource: RESOURCES.courses, action: "edit" } },
     ],
   },

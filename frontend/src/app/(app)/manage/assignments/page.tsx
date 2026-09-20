@@ -21,7 +21,12 @@ import { ApiError } from "@/lib/api/errors";
 import type { SubmissionType } from "@/types/domain";
 
 export default function ManageAssignmentsPage() {
-  const canEdit = usePermission("assignments", "edit");
+  // The backend authorizes every assignment mutation via `courses:edit`
+  // (see `assignments.ts`'s `requirePermission("courses", "edit")` and
+  // `hasEditPermission`), not a separate "assignments" permission — this
+  // must check the same resource the server actually enforces, or the page
+  // is unreachable for the only people who really can use it.
+  const canEdit = usePermission("courses", "edit");
   const session = useSessionStore((s) => s.session);
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
