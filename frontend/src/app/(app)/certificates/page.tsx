@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Award, Check, Search } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { SearchInput } from "@/components/patterns/SearchInput";
 import { useSessionStore } from "@/state/sessionStore";
+import { base64ToObjectUrl } from "@/lib/utils";
 import * as certificatesApi from "@/lib/api/resources/certificates";
 import { CertificateFace, formatLongDate } from "@/components/certificates/CertificateFace";
 
@@ -45,11 +46,7 @@ export default function MyCertificatesPage() {
 
         <div className="mt-4 flex items-center gap-2">
           <ShareLinkButton code={open.verificationCode} />
-          {/* Real PDF generation is a fast-follow; the honest state is to say so
-              rather than wire a button that silently does nothing. */}
-          <Button variant="secondary" disabled title="PDF download — coming soon">
-            Download
-          </Button>
+          <CertificatePdfButtons certificateId={open.id} />
         </div>
       </div>
     );
@@ -128,5 +125,35 @@ function ShareLinkButton({ code }: { code: string }) {
         "Share link"
       )}
     </Button>
+  );
+}
+
+/** View opens the generated PDF in a new tab (the browser's own PDF viewer
+ * handles zoom/print/its own download button from there); Download forces
+ * a save under a real filename instead of relying on that viewer's UI. */
+function CertificatePdfButtons({ certificateId }: { certificateId: string }) {
+  const view = useMutation({
+    mutationFn: () => certificatesApi.getCertificatePdf(certificateId),
+    onSuccess: ({ base64 }) => window.open(base64ToObjectUrl(base64, "application/pdf"), "_blank"),
+  });
+  const download = useMutation({
+    mutationFn: () => certificatesApi.getCertificatePdf(certificateId),
+    onSuccess: ({ base64, filename }) => {
+      const a = document.createElement("a");
+      a.href = base64ToObjectUrl(base64, "application/pdf");
+      a.download = filename;
+      a.click();
+    },
+  });
+
+  return (
+    <>
+      <Button variant="secondary" loading={view.isPending} onClick={() => view.mutate()}>
+        View PDF
+      </Button>
+      <Button variant="secondary" loading={download.isPending} onClick={() => download.mutate()}>
+        Download
+      </Button>
+    </>
   );
 }

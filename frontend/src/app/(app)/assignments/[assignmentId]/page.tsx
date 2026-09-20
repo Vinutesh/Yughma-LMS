@@ -1,17 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { ContentLibrary } from "@/components/content/ContentLibrary";
-import { ScormPlayer } from "@/components/scorm/ScormPlayer";
 import { useSessionStore } from "@/state/sessionStore";
 import * as assignmentsApi from "@/lib/api/resources/assignments";
 import type { AssignmentSummary } from "@/lib/api/resources/assignments";
@@ -79,6 +78,18 @@ function AssignmentBody({
     queryKey: ["assets", session.org.id],
     queryFn: () => contentApi.listAssets(),
   });
+
+  // A SCORM assignment is finished in a separate tab (see the "Start
+  // assignment" button below) — this tab has no way to know it closed, so
+  // refetch on refocus instead of relying on a message the other tab never
+  // sends here.
+  useEffect(() => {
+    function onFocus() {
+      qc.invalidateQueries({ queryKey: ["mySubmission", assignment.id] });
+    }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [assignment.id, qc]);
 
   const submit = useMutation({
     mutationFn: () =>
@@ -162,20 +173,29 @@ function AssignmentBody({
       {(!assignment.assetId || isScorm) && <div className="mb-5" />}
 
       {isScorm ? (
-        // A SCORM assignment is completed in-app, not downloaded and
-        // submitted separately — the package itself reports its own
-        // completion and (when it has one) score straight to
-        // `settleAssignmentGrade`, the same qualifying-assignment/
-        // certificate path a human-entered grade goes through. There's
-        // nothing here for the learner to type or attach.
-        <ScormPlayer
-          target={{ assignmentId: assignment.id }}
-          title={assignment.title}
-          onComplete={() => {
-            qc.invalidateQueries({ queryKey: ["mySubmission", assignment.id] });
-            qc.invalidateQueries({ queryKey: ["myAssignments"] });
-          }}
-        />
+        // A SCORM assignment opens in its own tab rather than embedding
+        // here — the package itself reports completion and (when it has
+        // one) a score straight to `settleAssignmentGrade`, the same
+        // qualifying-assignment/certificate path a human-entered grade
+        // goes through, so this page just needs to notice when it's back
+        // in focus (the effect above) rather than track progress itself.
+        <Card className="flex flex-col items-center gap-3 p-8 text-center">
+          {graded ? (
+            <p className="text-sm text-text-secondary">
+              You finished this on{" "}
+              {new Date(submission!.submittedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.
+            </p>
+          ) : (
+            <p className="text-sm text-text-secondary">
+              This opens in a new tab. Finish it there — this page updates on its own once you&apos;re
+              done and back here.
+            </p>
+          )}
+          <Button onClick={() => window.open(`/assignments/${assignment.id}/play`, "_blank")}>
+            <ExternalLink className="mr-1.5 size-3.5" aria-hidden />
+            {graded ? "Redo assignment" : "Start assignment"}
+          </Button>
+        </Card>
       ) : graded ? (
         <div className="flex flex-col gap-4">
           <div>

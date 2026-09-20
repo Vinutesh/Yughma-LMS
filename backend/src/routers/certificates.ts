@@ -5,8 +5,48 @@ import type { ScopedDb } from "../trpc/context.js";
 import { rawPrisma } from "../db.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { resolvePlaybackUrl } from "./content.js";
+import { isStorageConfigured } from "../storage/r2.js";
+import { renderCertificatePdf, type CertificateOverlayLayoutShape } from "../certificates/renderPdf.js";
 
 type RawDb = typeof rawPrisma;
+
+/**
+ * Builds the actual PDF bytes for one certificate, base64-encoded for
+ * transport over tRPC (which has no notion of a binary file response) —
+ * the frontend turns this back into a Blob to view or download. Shared by
+ * the two callers below (`getPdf`/`getPdfByCode`) so "how a certificate
+ * becomes a PDF" has exactly one implementation regardless of how the
+ * caller reached it.
+ */
+async function buildCertificatePdf(
+  db: RawDb,
+  certificate: { templateId: string; userId: string; orgId: string; sourceTitle: string; issuedAt: Date; verificationCode: string },
+): Promise<{ base64: string; filename: string }> {
+  const [template, user, org] = await Promise.all([
+    db.certificateTemplate.findUniqueOrThrow({ where: { id: certificate.templateId } }),
+    db.user.findUniqueOrThrow({ where: { id: certificate.userId } }),
+    db.organization.findUniqueOrThrow({ where: { id: certificate.orgId } }),
+  ]);
+
+  let backgroundStorageKey: string | null = null;
+  if (template.backgroundAssetId && isStorageConfigured()) {
+    const asset = await db.asset.findUnique({ where: { id: template.backgroundAssetId } });
+    backgroundStorageKey = asset?.storageKey ?? null;
+  }
+
+  const bytes = await renderCertificatePdf({
+    recipientName: user.name,
+    sourceTitle: certificate.sourceTitle,
+    issuedAt: certificate.issuedAt,
+    verificationCode: certificate.verificationCode,
+    orgName: org.name,
+    backgroundStorageKey,
+    overlayLayout: backgroundStorageKey ? (template.overlayLayout as CertificateOverlayLayoutShape | null) : null,
+  });
+
+  const safeName = user.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "") || "certificate";
+  return { base64: Buffer.from(bytes).toString("base64"), filename: `${safeName}-certificate.pdf` };
+}
 
 const positionSchema = z.object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) });
 const overlayLayoutSchema = z.object({ name: positionSchema, course: positionSchema, date: positionSchema });
@@ -220,6 +260,18 @@ export const certificatesRouter = router({
     });
   }),
 
+  /** The learner's own certificate as a downloadable/viewable PDF —
+   * base64-encoded since tRPC has no binary response shape; the frontend
+   * decodes it into a Blob. Revoked certificates aren't servable here, same
+   * as they drop out of `mine` above. */
+  getPdf: protectedProcedure.input(z.object({ certificateId: z.string() })).query(async ({ ctx, input }) => {
+    const certificate = await ctx.db.certificate.findUnique({ where: { id: input.certificateId } });
+    if (!certificate || certificate.userId !== ctx.session.userId || certificate.revoked) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Certificate not found." });
+    }
+    return buildCertificatePdf(ctx.rawDb, certificate);
+  }),
+
   /**
    * Backs the public, no-login verification page — deliberately the one
    * `publicProcedure` in this router. Reveals nothing beyond what the
@@ -251,6 +303,22 @@ export const certificatesRouter = router({
         org.name,
       ),
     };
+  }),
+
+  /** The public verification page's PDF view/download — same access rule
+   * as `verifyCode`: findable only by its own verification code, and only
+   * while not revoked. Deliberately doesn't reuse `verifyCode`'s own
+   * lookup to avoid a second round trip; both independently 404 the same
+   * way for an unknown or revoked code. */
+  getPdfByCode: publicProcedure.input(z.object({ code: z.string() })).query(async ({ input }) => {
+    const code = input.code.trim().toUpperCase();
+    const certificate = await rawPrisma.certificate.findFirst({
+      where: { verificationCode: { equals: code, mode: "insensitive" } },
+    });
+    if (!certificate || certificate.revoked) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Certificate not found." });
+    }
+    return buildCertificatePdf(rawPrisma, certificate);
   }),
 
   /** The recipient is always a learner in some client org, never the

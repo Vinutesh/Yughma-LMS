@@ -2,10 +2,12 @@
 
 import { use } from "react";
 import Image from "next/image";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CircleCheck, HelpCircle } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import * as certificatesApi from "@/lib/api/resources/certificates";
 import { formatLongDate } from "@/components/certificates/CertificateFace";
+import { base64ToObjectUrl } from "@/lib/utils";
 
 /**
  * Public, no-login certificate verification — the external-credibility payoff
@@ -18,6 +20,20 @@ export default function VerifyPage({ params }: { params: Promise<{ code: string 
   const { data, isLoading } = useQuery({
     queryKey: ["verify", code],
     queryFn: () => certificatesApi.verifyCode(decodeURIComponent(code)),
+  });
+
+  const view = useMutation({
+    mutationFn: () => certificatesApi.getCertificatePdfByCode(decodeURIComponent(code)),
+    onSuccess: ({ base64 }) => window.open(base64ToObjectUrl(base64, "application/pdf"), "_blank"),
+  });
+  const download = useMutation({
+    mutationFn: () => certificatesApi.getCertificatePdfByCode(decodeURIComponent(code)),
+    onSuccess: ({ base64, filename }) => {
+      const a = document.createElement("a");
+      a.href = base64ToObjectUrl(base64, "application/pdf");
+      a.download = filename;
+      a.click();
+    },
   });
 
   return (
@@ -53,6 +69,14 @@ export default function VerifyPage({ params }: { params: Promise<{ code: string 
                   {data.certificate.verificationCode}
                 </span>
               </p>
+              <div className="mt-5 flex items-center justify-center gap-2">
+                <Button variant="secondary" size="sm" loading={view.isPending} onClick={() => view.mutate()}>
+                  View PDF
+                </Button>
+                <Button variant="secondary" size="sm" loading={download.isPending} onClick={() => download.mutate()}>
+                  Download
+                </Button>
+              </div>
             </>
           )}
 

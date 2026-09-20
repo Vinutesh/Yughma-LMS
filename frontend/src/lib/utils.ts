@@ -36,3 +36,14 @@ export function downloadJson(filename: string, data: unknown): void {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** Decodes a base64 payload (a PDF, here — tRPC has no binary response
+ * shape) into a same-origin object URL a browser can open in a new tab or
+ * save. Caller should `URL.revokeObjectURL` it once done, but a short-lived
+ * leak here (one PDF, one click) isn't worth the extra bookkeeping. */
+export function base64ToObjectUrl(base64: string, contentType: string): string {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: contentType }));
+}

@@ -103,6 +103,32 @@ export async function listMyCertificates(): Promise<CertificateView[]> {
   }
 }
 
+export interface CertificatePdf {
+  base64: string;
+  filename: string;
+}
+
+/** The learner's own certificate, rendered as a PDF — base64-encoded since
+ * tRPC has no binary response shape. Use `base64ToObjectUrl` to turn this
+ * into something a browser can open or save. */
+export async function getCertificatePdf(certificateId: string): Promise<CertificatePdf> {
+  try {
+    return await trpcClient.certificates.getPdf.query({ certificateId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** The public verification page's counterpart to `getCertificatePdf` — no
+ * login, found by verification code alone. */
+export async function getCertificatePdfByCode(code: string): Promise<CertificatePdf> {
+  try {
+    return await trpcClient.certificates.getPdfByCode.query({ code });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
 export type VerificationResult =
   | { status: "valid"; certificate: CertificateView }
   | { status: "revoked"; code: string }
