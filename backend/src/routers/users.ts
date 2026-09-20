@@ -158,6 +158,69 @@ export const usersRouter = router({
    * Returns the password so it can be relayed directly, exactly like
    * `create` does, since the email is best-effort.
    */
+  /**
+   * Permanently removes someone from the caller's own org — the
+   * counterpart to `platform.eraseClientUser`, which deliberately refuses
+   * platform-org accounts, so before this there was no way to delete a
+   * Yughma colleague at all, only deactivate them.
+   *
+   * Two guards, both about not creating an unrecoverable state:
+   * self-deletion (you'd destroy the session making the request), and
+   * removing the last account that can still manage users. That second one
+   * is checked by *permission*, not by a role named "Org Admin" the way
+   * `deactivate` above does it — the platform org's roles are called Admin
+   * and Platform Admin, so a name check silently protects nothing there,
+   * and with no self-signup anywhere, losing the last admin means nobody
+   * can ever log in to appoint another.
+   */
+  delete: requirePermission("users", "manage")
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.session.userId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You can't delete your own account." });
+      }
+
+      const target = await ctx.db.user.findUnique({
+        where: { id: input.userId },
+        include: { roles: { include: { role: { include: { permissions: true } } } } },
+      });
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+
+      const canManageUsers = (roles: typeof target.roles) =>
+        roles.some((ur) => ur.role.permissions.some((p) => p.resource === "users" && p.action === "manage"));
+
+      if (canManageUsers(target.roles)) {
+        const others = await ctx.db.user.findMany({
+          where: { id: { not: target.id }, status: "active" },
+          include: { roles: { include: { role: { include: { permissions: true } } } } },
+        });
+        if (!others.some((u) => canManageUsers(u.roles))) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This is the only account that can manage users. Give someone else that role first.",
+          });
+        }
+      }
+
+      try {
+        await ctx.db.user.delete({ where: { id: target.id } });
+      } catch (err) {
+        // Same non-cascading foreign keys `platform.eraseClientUser` runs
+        // into: authored content outlives its author by design, so this
+        // reports rather than quietly deleting a course out from under
+        // everyone using it.
+        if (err instanceof Error && err.message.includes("Foreign key constraint")) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "This person authored content still in use (a course, an uploaded asset, or a discussion thread) and can't be deleted until that content is reassigned or removed. You can deactivate them instead.",
+          });
+        }
+        throw err;
+      }
+      return { ok: true };
+    }),
+
   resetPassword: requirePermission("users", "manage")
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {

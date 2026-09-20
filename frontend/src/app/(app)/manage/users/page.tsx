@@ -350,6 +350,7 @@ function UserDetail({
   const [deptId, setDeptId] = useState(user.departmentId ?? "");
   const [teamId, setTeamId] = useState(user.teamId ?? "");
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const roleMutation = useMutation({
     mutationFn: (newRoleId: string) => usersApi.updateUserRole(user.id, newRoleId || null),
@@ -371,6 +372,17 @@ function UserDetail({
       user.status === "active" ? usersApi.deactivateUser(user.id) : usersApi.reactivateUser(user.id),
     onSuccess: onStatusChanged,
     onError: (err) => {
+      if (err instanceof ApiError) setBlockedMessage(err.message);
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => usersApi.deleteUser(user.id),
+    onSuccess: () => {
+      setConfirmDelete(false);
+      onStatusChanged();
+    },
+    onError: (err) => {
+      setConfirmDelete(false);
       if (err instanceof ApiError) setBlockedMessage(err.message);
     },
   });
@@ -473,19 +485,48 @@ function UserDetail({
           </p>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" loading={resetPassword.isPending} onClick={() => resetPassword.mutate()}>
             Reset password
           </Button>
           <Button
-            variant={user.status === "active" ? "destructive" : "secondary"}
+            variant="secondary"
             loading={statusMutation.isPending}
             onClick={() => statusMutation.mutate()}
           >
-            {user.status === "active" ? "Deactivate user" : "Reactivate user"}
+            {user.status === "active" ? "Deactivate" : "Reactivate"}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setBlockedMessage(null);
+              setConfirmDelete(true);
+            }}
+          >
+            Delete
           </Button>
         </div>
       </div>
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently delete {user.name}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            This removes their account and personal data for good — unlike Deactivate, it can&apos;t
+            be undone. Deactivate instead if you only want to block their access.
+          </p>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" loading={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
+              Delete permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

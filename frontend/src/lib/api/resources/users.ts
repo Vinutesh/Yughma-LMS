@@ -83,6 +83,18 @@ export async function inviteUsers(
   return results;
 }
 
+/** Permanently removes someone from the admin's own org. Throws with a
+ * readable reason when it's refused — deleting yourself, deleting the last
+ * account that can manage users, or a person whose authored content still
+ * blocks the delete. */
+export async function deleteUser(userId: string): Promise<void> {
+  try {
+    await trpcClient.users.delete.mutate({ userId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
 /**
  * Issues a fresh temporary password for someone in the admin's own org —
  * the only recovery path there is, since self-service reset doesn't exist
