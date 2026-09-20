@@ -69,71 +69,96 @@ export const scormRouter = router({
    * Issues a `ScormLaunchToken` and returns the URL to embed in the
    * player's iframe. `protectedProcedure`, not `requirePermission` — a
    * plain Learner holds zero permissions (see the seed script) and must
-   * still be able to launch a SCORM lesson they're enrolled in, same
-   * reasoning as `content.getLessonAssetUrl`. Enrollment is re-checked here
-   * server-side regardless of what the frontend's own (non-authoritative)
-   * check already decided.
+   * still be able to launch a SCORM lesson OR a SCORM-attached assignment
+   * they're enrolled in, same reasoning as `content.getLessonAssetUrl`.
+   * Enrollment is re-checked here server-side regardless of what the
+   * frontend's own (non-authoritative) check already decided.
+   *
+   * Exactly one of `lessonId`/`assignmentId` is expected — both resolve to
+   * the same (courseId, assetId) shape before the shared enrollment check
+   * and token issuance below, so a SCORM assignment gets the identical
+   * sandboxed-iframe treatment a SCORM lesson always has, not a parallel
+   * implementation.
    */
-  getLaunchUrl: protectedProcedure.input(z.object({ lessonId: z.string() })).mutation(async ({ ctx, input }) => {
-    const lesson = await ctx.rawDb.lesson.findUnique({ where: { id: input.lessonId } });
-    if (!lesson || lesson.contentType !== "scorm" || !lesson.assetId) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found." });
-    }
+  getLaunchUrl: protectedProcedure
+    .input(z.object({ lessonId: z.string().optional(), assignmentId: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      let courseId: string;
+      let assetId: string | null;
 
-    const enrollment = await ctx.rawDb.enrollment.findUnique({
-      where: { courseId_userId: { courseId: lesson.courseId, userId: ctx.session.userId } },
-    });
-    if (!enrollment || enrollment.status === "requested") {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Not enrolled in this course." });
-    }
+      if (input.lessonId) {
+        const lesson = await ctx.rawDb.lesson.findUnique({ where: { id: input.lessonId } });
+        if (!lesson || lesson.contentType !== "scorm" || !lesson.assetId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found." });
+        }
+        courseId = lesson.courseId;
+        assetId = lesson.assetId;
+      } else if (input.assignmentId) {
+        const assignment = await ctx.rawDb.assignment.findUnique({ where: { id: input.assignmentId } });
+        if (!assignment || !assignment.assetId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found." });
+        }
+        courseId = assignment.courseId;
+        assetId = assignment.assetId;
+      } else {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Specify a lesson or an assignment." });
+      }
 
-    const asset = await ctx.rawDb.asset.findUnique({ where: { id: lesson.assetId } });
-    if (!asset || !asset.scormLaunchPath) {
-      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This package isn't ready yet." });
-    }
+      const enrollment = await ctx.rawDb.enrollment.findUnique({
+        where: { courseId_userId: { courseId, userId: ctx.session.userId } },
+      });
+      if (!enrollment || enrollment.status === "requested") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not enrolled in this course." });
+      }
 
-    const token = crypto.randomBytes(24).toString("base64url");
-    await ctx.rawDb.scormLaunchToken.create({
-      data: {
-        token,
-        userId: ctx.session.userId,
-        lessonId: lesson.id,
-        assetId: asset.id,
-        expiresAt: new Date(Date.now() + LAUNCH_TOKEN_TTL_MS),
-      },
-    });
+      const asset = await ctx.rawDb.asset.findUnique({ where: { id: assetId } });
+      if (!asset || asset.kind !== "scorm" || !asset.scormLaunchPath) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This package isn't ready yet." });
+      }
 
-    // Ends in the package's real filename (e.g. "index_lms.html"), not a
-    // bare token — found necessary against a real Articulate Storyline
-    // export, whose own bootstrap script computes sibling-asset paths from
-    // `window.location.pathname` directly rather than through the DOM's
-    // base-URL-aware resolution, so an injected <base> tag alone doesn't
-    // help it. Ending the URL in the real filename means *any*
-    // path-computation strategy — browser-native or a script parsing
-    // location.pathname by hand — lands on the same correct directory,
-    // exactly like a plain static file server would have served this same
-    // package. See the route handler's own doc comment for the full story.
-    // SCORM_CONTENT_ORIGIN, when set, points at a dedicated origin (e.g.
-    // https://scorm.yughma.com) that serves nothing but /api/scorm/* — see
-    // proxy.ts. Real authoring-tool runtimes (confirmed: Storyline's bundled
-    // Rustici SCORM Driver) locate the LMS API object by walking
-    // window.parent/window.top.opener; they never check their own window.
-    // Even with allow-same-origin on the SCO's sandbox, that walk only
-    // succeeds if an *ancestor* frame is both same-origin with the SCO and
-    // actually defines the API — the real app page one level up never is
-    // (different real origin), so the URL handed out here points at a
-    // small trusted "wrapper" document instead of the launch file directly.
-    // The wrapper (see the route handler's own doc comment) is same-origin
-    // with the SCO, defines the API, and iframes the real launch file
-    // beneath itself. Without SCORM_CONTENT_ORIGIN configured, none of this
-    // is safe (that origin would be this app's own), so the URL points
-    // straight at the launch file with no wrapper and no allow-same-origin —
-    // real authoring-tool output will still hang in that mode, a known,
-    // deliberate limitation until the isolated origin is set up.
-    const scormOrigin = process.env.SCORM_CONTENT_ORIGIN;
-    const url = scormOrigin
-      ? `${scormOrigin}/api/scorm/${token}/__scorm_wrapper__`
-      : `/api/scorm/${token}/${asset.scormLaunchPath}`;
-    return { url, crossOrigin: !!scormOrigin };
-  }),
+      const token = crypto.randomBytes(24).toString("base64url");
+      await ctx.rawDb.scormLaunchToken.create({
+        data: {
+          token,
+          userId: ctx.session.userId,
+          lessonId: input.lessonId,
+          assignmentId: input.assignmentId,
+          assetId: asset.id,
+          expiresAt: new Date(Date.now() + LAUNCH_TOKEN_TTL_MS),
+        },
+      });
+
+      // Ends in the package's real filename (e.g. "index_lms.html"), not a
+      // bare token — found necessary against a real Articulate Storyline
+      // export, whose own bootstrap script computes sibling-asset paths from
+      // `window.location.pathname` directly rather than through the DOM's
+      // base-URL-aware resolution, so an injected <base> tag alone doesn't
+      // help it. Ending the URL in the real filename means *any*
+      // path-computation strategy — browser-native or a script parsing
+      // location.pathname by hand — lands on the same correct directory,
+      // exactly like a plain static file server would have served this same
+      // package. See the route handler's own doc comment for the full story.
+      // SCORM_CONTENT_ORIGIN, when set, points at a dedicated origin (e.g.
+      // https://scorm.yughma.com) that serves nothing but /api/scorm/* — see
+      // proxy.ts. Real authoring-tool runtimes (confirmed: Storyline's bundled
+      // Rustici SCORM Driver) locate the LMS API object by walking
+      // window.parent/window.top.opener; they never check their own window.
+      // Even with allow-same-origin on the SCO's sandbox, that walk only
+      // succeeds if an *ancestor* frame is both same-origin with the SCO and
+      // actually defines the API — the real app page one level up never is
+      // (different real origin), so the URL handed out here points at a
+      // small trusted "wrapper" document instead of the launch file directly.
+      // The wrapper (see the route handler's own doc comment) is same-origin
+      // with the SCO, defines the API, and iframes the real launch file
+      // beneath itself. Without SCORM_CONTENT_ORIGIN configured, none of this
+      // is safe (that origin would be this app's own), so the URL points
+      // straight at the launch file with no wrapper and no allow-same-origin —
+      // real authoring-tool output will still hang in that mode, a known,
+      // deliberate limitation until the isolated origin is set up.
+      const scormOrigin = process.env.SCORM_CONTENT_ORIGIN;
+      const url = scormOrigin
+        ? `${scormOrigin}/api/scorm/${token}/__scorm_wrapper__`
+        : `/api/scorm/${token}/${asset.scormLaunchPath}`;
+      return { url, crossOrigin: !!scormOrigin };
+    }),
 });

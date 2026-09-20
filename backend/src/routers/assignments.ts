@@ -67,6 +67,53 @@ async function hasEditPermission(db: ScopedDb, roleIds: string[]): Promise<boole
   );
 }
 
+/**
+ * Grading a qualifying assignment can be what finally unlocks the learner's
+ * certificate — they may well have finished every lesson already and just
+ * been waiting on this score. Only fires once they've also passed the
+ * threshold AND the course itself is otherwise done; `issueCertificate` is
+ * idempotent, so calling this again for someone who already passed (and was
+ * already issued a certificate) is a harmless no-op.
+ *
+ * Exported so both `grade` (a staff member scoring a submission by hand)
+ * and the SCORM progress webhook (`frontend/src/app/api/scorm/[token]/
+ * progress/route.ts`, a package self-reporting its own score) settle a pass
+ * through the exact same path, rather than the webhook re-implementing this
+ * decision or — worse — impersonating a staff member to call `grade`
+ * itself, which it has no permission to do.
+ */
+export async function settleAssignmentGrade(
+  rawDb: RawDb,
+  assignment: { courseId: string; isQualifying: boolean; passingScorePercent: number; pointsPossible: number },
+  learnerUserId: string,
+  score: number,
+): Promise<void> {
+  if (!assignment.isQualifying || (score / assignment.pointsPossible) * 100 < assignment.passingScorePercent) return;
+
+  const [course, enrollment] = await Promise.all([
+    rawDb.course.findUnique({ where: { id: assignment.courseId } }),
+    rawDb.enrollment.findUnique({
+      where: { courseId_userId: { courseId: assignment.courseId, userId: learnerUserId } },
+    }),
+  ]);
+  if (!course?.certificateTemplateId || enrollment?.status !== "completed") return;
+
+  // The learner is in their own client org, not necessarily the caller's —
+  // `rawDb` and the learner's own `orgId`, same cross-org pattern as
+  // `platform.ts`'s `grantCourseAccess`.
+  const learner = await rawDb.user.findUnique({ where: { id: learnerUserId } });
+  if (!learner) return;
+
+  await issueCertificate(rawDb, {
+    orgId: learner.orgId,
+    userId: learner.id,
+    templateId: course.certificateTemplateId,
+    sourceKind: "course",
+    sourceId: course.id,
+    sourceTitle: course.title,
+  });
+}
+
 export const assignmentsRouter = router({
   list: requirePermission("courses", "view").query(async ({ ctx }) => {
     const assignments = await ctx.db.assignment.findMany({ orderBy: { createdAt: "desc" } });
@@ -104,7 +151,11 @@ export const assignmentsRouter = router({
   /** The signed download URL for the admin-uploaded test/assignment
    * document itself (`Assignment.assetId`) — distinct from a learner's own
    * submission file. Same access rule as `get` above: platform staff with
-   * `courses:edit`, or a learner enrolled in the assignment's course. */
+   * `courses:edit`, or a learner enrolled in the assignment's course.
+   * Includes the asset's `kind` so the frontend can render a SCORM package
+   * inline (via `ScormPlayer`) instead of a plain download link — the same
+   * distinction `Lesson.contentType` already draws for lessons, just read
+   * off the asset itself since `Assignment` has no `contentType` field. */
   getAssignmentAssetUrl: protectedProcedure
     .input(z.object({ assignmentId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -121,7 +172,7 @@ export const assignmentsRouter = router({
       const asset = await ctx.rawDb.asset.findUnique({ where: { id: assignment.assetId } });
       if (!asset) throw new TRPCError({ code: "NOT_FOUND", message: "Attached file not found." });
 
-      return { name: asset.name, url: await resolvePlaybackUrl(asset.storageKey) };
+      return { name: asset.name, kind: asset.kind, url: await resolvePlaybackUrl(asset.storageKey) };
     }),
 
   create: requirePermission("courses", "edit")
@@ -341,37 +392,7 @@ export const assignmentsRouter = router({
         },
       });
 
-      // Grading a qualifying assignment can be what finally unlocks the
-      // learner's certificate — they may well have finished every lesson
-      // already and just been waiting on this score. Only fires once they've
-      // also passed the threshold AND the course itself is otherwise done;
-      // `issueCertificate` is idempotent, so re-grading someone who already
-      // passed (and was already issued a certificate) is a harmless no-op.
-      if (assignment.isQualifying && input.score / assignment.pointsPossible * 100 >= assignment.passingScorePercent) {
-        const [course, enrollment] = await Promise.all([
-          ctx.rawDb.course.findUnique({ where: { id: assignment.courseId } }),
-          ctx.rawDb.enrollment.findUnique({
-            where: { courseId_userId: { courseId: assignment.courseId, userId: submission.userId } },
-          }),
-        ]);
-        if (course?.certificateTemplateId && enrollment?.status === "completed") {
-          // The submission's learner is in their own client org, not
-          // necessarily the platform-org grader's — `ctx.rawDb` and the
-          // learner's own `orgId`, same cross-org pattern as
-          // `platform.ts`'s `grantCourseAccess`.
-          const learner = await ctx.rawDb.user.findUnique({ where: { id: submission.userId } });
-          if (learner) {
-            await issueCertificate(ctx.rawDb, {
-              orgId: learner.orgId,
-              userId: learner.id,
-              templateId: course.certificateTemplateId,
-              sourceKind: "course",
-              sourceId: course.id,
-              sourceTitle: course.title,
-            });
-          }
-        }
-      }
+      await settleAssignmentGrade(ctx.rawDb, assignment, submission.userId, input.score);
 
       return updated;
     }),

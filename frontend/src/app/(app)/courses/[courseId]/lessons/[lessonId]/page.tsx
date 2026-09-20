@@ -157,7 +157,7 @@ export default function LessonViewerPage() {
             </Card>
           ) : (
             <ScormPlayer
-              lessonId={lesson.id}
+              target={{ lessonId: lesson.id }}
               title={lesson.title}
               onComplete={() => {
                 // The SCORM package's own completion already recorded

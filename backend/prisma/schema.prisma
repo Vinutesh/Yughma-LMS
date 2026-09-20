@@ -318,8 +318,14 @@ model ScormLaunchToken {
   token     String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  lessonId  String
+  /// Exactly one of lesson/assignment is set — a launch token is issued
+  /// for either a SCORM lesson or a SCORM-attached assignment, never
+  /// both. Both optional at the DB level; enforced in `scorm.ts`'s
+  /// `getLaunchUrl`.
+  lesson       Lesson?     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId     String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String?
   asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   assetId   String
   createdAt DateTime @default(now())
@@ -327,6 +333,7 @@ model ScormLaunchToken {
 
   @@index([userId])
   @@index([lessonId])
+  @@index([assignmentId])
 }
 
 // ---------------------------------------------------------------------------
@@ -482,6 +489,7 @@ model Assignment {
   createdAt        DateTime       @default(now())
 
   submissions Submission[]
+  scormLaunchTokens ScormLaunchToken[]
 
   @@index([orgId])
   @@index([courseId])

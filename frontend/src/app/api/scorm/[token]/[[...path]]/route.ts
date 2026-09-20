@@ -71,15 +71,30 @@ const WRAPPER_SEGMENT = "__scorm_wrapper__";
 // beyond the token already required to reach it at all.
 const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
 
-async function loadProgressContext(launchToken: { lessonId: string; userId: string }) {
-  const lesson = await rawPrisma.lesson.findUnique({ where: { id: launchToken.lessonId } });
-  const enrollment = lesson
-    ? await rawPrisma.enrollment.findUnique({
-        where: { courseId_userId: { courseId: lesson.courseId, userId: launchToken.userId } },
-      })
-    : null;
-  const alreadyDone = !!enrollment && lesson ? enrollment.completedLessonIds.includes(lesson.id) : false;
-  return alreadyDone;
+/**
+ * The initial CMI state a re-opened package should see — "have I already
+ * finished this?" and, for an assignment, "what did I score last time?".
+ * Branches on which of `lessonId`/`assignmentId` the launch token carries
+ * (see `ScormLaunchToken`'s own doc comment: exactly one is ever set).
+ */
+async function loadProgressContext(launchToken: { lessonId: string | null; assignmentId: string | null; userId: string }) {
+  if (launchToken.lessonId) {
+    const lesson = await rawPrisma.lesson.findUnique({ where: { id: launchToken.lessonId } });
+    const enrollment = lesson
+      ? await rawPrisma.enrollment.findUnique({
+          where: { courseId_userId: { courseId: lesson.courseId, userId: launchToken.userId } },
+        })
+      : null;
+    const alreadyDone = !!enrollment && lesson ? enrollment.completedLessonIds.includes(lesson.id) : false;
+    return { alreadyDone, scoreRaw: null as number | null };
+  }
+  if (launchToken.assignmentId) {
+    const submission = await rawPrisma.submission.findFirst({
+      where: { assignmentId: launchToken.assignmentId, userId: launchToken.userId },
+    });
+    return { alreadyDone: submission?.score != null, scoreRaw: submission?.score ?? null };
+  }
+  return { alreadyDone: false, scoreRaw: null as number | null };
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string; path?: string[] }> }) {
@@ -97,11 +112,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
   const isWrapperRequest = path?.length === 1 && path[0] === WRAPPER_SEGMENT;
   if (isWrapperRequest) {
-    const alreadyDone = await loadProgressContext(launchToken);
+    const { alreadyDone, scoreRaw } = await loadProgressContext(launchToken);
     const shim = buildScormShimScript({
       token,
       progressUrl: `/api/scorm/${token}/progress`,
-      initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw: null, suspendData: "" },
+      initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw, suspendData: "" },
     });
     const html = `<!doctype html>
 <html>
@@ -155,11 +170,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   // directly into the launch page itself, same-origin with this app, no
   // wrapper. Only works for SCOs that check their own window for the API —
   // see this file's own top comment.
-  const alreadyDone = await loadProgressContext(launchToken);
+  const { alreadyDone, scoreRaw } = await loadProgressContext(launchToken);
   const shim = buildScormShimScript({
     token,
     progressUrl: `/api/scorm/${token}/progress`,
-    initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw: null, suspendData: "" },
+    initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw, suspendData: "" },
   });
 
   // Still injected as defense-in-depth for packages that *do* use normal

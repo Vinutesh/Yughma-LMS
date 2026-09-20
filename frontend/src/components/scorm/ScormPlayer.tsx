@@ -29,15 +29,25 @@ import { Button } from "@/components/ui/Button";
  * never this app's, so even fully scripting its own frame tree reaches
  * nothing of the real app's session/cookies/DOM.
  */
-export function ScormPlayer({ lessonId, title, onComplete }: { lessonId: string; title: string; onComplete?: () => void }) {
+export function ScormPlayer({
+  target,
+  title,
+  onComplete,
+}: {
+  /** Which the package belongs to — a lesson or an assignment. Exactly one,
+   * mirroring `ScormLaunchToken`'s own shape on the backend. */
+  target: { lessonId: string } | { assignmentId: string };
+  title: string;
+  onComplete?: () => void;
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [percent, setPercent] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["scormLaunchUrl", lessonId],
-    queryFn: () => scormApi.getScormLaunchUrl(lessonId),
+    queryKey: ["scormLaunchUrl", target],
+    queryFn: () => scormApi.getScormLaunchUrl(target),
   });
 
   useEffect(() => {

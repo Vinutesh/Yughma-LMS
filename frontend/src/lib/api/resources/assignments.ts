@@ -1,4 +1,4 @@
-import type { Assignment, Submission, SubmissionType } from "@/types/domain";
+import type { AssetKind, Assignment, Submission, SubmissionType } from "@/types/domain";
 import { trpcClient } from "@/lib/trpc/client";
 import { toApiError } from "@/lib/trpc/mapError";
 import { nullsToUndefined } from "@/lib/api/serialization";
@@ -101,8 +101,13 @@ export async function updateAssignment(
 
 /** The admin-uploaded test/assignment document's signed download URL —
  * distinct from a learner's own submission file. `undefined` url means
- * storage isn't configured; `null` return means nothing is attached. */
-export async function getAssignmentAssetUrl(assignmentId: string): Promise<{ name: string; url?: string } | null> {
+ * storage isn't configured; `null` return means nothing is attached.
+ * `kind === "scorm"` means it should render inline via `ScormPlayer`
+ * instead of a download link — the learner completes it in the LMS, no
+ * download/offline step. */
+export async function getAssignmentAssetUrl(
+  assignmentId: string,
+): Promise<{ name: string; kind: AssetKind; url?: string } | null> {
   try {
     return await trpcClient.assignments.getAssignmentAssetUrl.query({ assignmentId });
   } catch (err) {

@@ -43,13 +43,15 @@ export async function saveLrsConnection(input: { endpointUrl: string; authKey: s
   }
 }
 
-/** Issues a fresh, single-use-session launch URL for a SCORM lesson —
- * re-checks enrollment server-side every time this is called, same as
- * video/file playback. Call this each time the player mounts; don't cache
- * the URL across lessons or reloads. */
-export async function getScormLaunchUrl(lessonId: string): Promise<{ url: string; crossOrigin: boolean }> {
+/** Issues a fresh, single-use-session launch URL for a SCORM lesson OR a
+ * SCORM-attached assignment — re-checks enrollment server-side every time
+ * this is called, same as video/file playback. Call this each time the
+ * player mounts; don't cache the URL across lessons/assignments or reloads. */
+export async function getScormLaunchUrl(
+  target: { lessonId: string } | { assignmentId: string },
+): Promise<{ url: string; crossOrigin: boolean }> {
   try {
-    return await trpcClient.scorm.getLaunchUrl.mutate({ lessonId });
+    return await trpcClient.scorm.getLaunchUrl.mutate(target);
   } catch (err) {
     throw toApiError(err);
   }

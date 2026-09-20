@@ -11,12 +11,13 @@ import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { ContentLibrary } from "@/components/content/ContentLibrary";
+import { ScormPlayer } from "@/components/scorm/ScormPlayer";
 import { useSessionStore } from "@/state/sessionStore";
 import * as assignmentsApi from "@/lib/api/resources/assignments";
 import type { AssignmentSummary } from "@/lib/api/resources/assignments";
 import * as contentApi from "@/lib/api/resources/content";
 import { ApiError } from "@/lib/api/errors";
-import type { Submission } from "@/types/domain";
+import type { AssetKind, Submission } from "@/types/domain";
 
 export default function AssignmentSubmitPage() {
   const { assignmentId } = useParams<{ assignmentId: string }>();
@@ -62,7 +63,7 @@ function AssignmentBody({
 }: {
   assignment: AssignmentSummary;
   submission: Submission | null;
-  assignmentFile: { name: string; url?: string } | null;
+  assignmentFile: { name: string; kind: AssetKind; url?: string } | null;
 }) {
   const session = useSessionStore((s) => s.session)!;
   const qc = useQueryClient();
@@ -100,6 +101,7 @@ function AssignmentBody({
   const wantsText = assignment.submissionType !== "file";
   const wantsFile = assignment.submissionType !== "text";
   const attached = assets.find((a) => a.id === assetId);
+  const isScorm = assignmentFile?.kind === "scorm";
 
   const dueLabel = assignment.dueAt
     ? new Date(assignment.dueAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
@@ -142,7 +144,7 @@ function AssignmentBody({
         {assignment.instructions}
       </p>
 
-      {assignment.assetId && (
+      {assignment.assetId && !isScorm && (
         <div className="mb-5 mt-3 flex items-center justify-between rounded-md border border-border px-3 py-2">
           <span className="text-sm text-text-secondary">{assignmentFile?.name ?? "Assignment file"}</span>
           {assignmentFile?.url ? (
@@ -157,9 +159,24 @@ function AssignmentBody({
           )}
         </div>
       )}
-      {!assignment.assetId && <div className="mb-5" />}
+      {(!assignment.assetId || isScorm) && <div className="mb-5" />}
 
-      {graded ? (
+      {isScorm ? (
+        // A SCORM assignment is completed in-app, not downloaded and
+        // submitted separately — the package itself reports its own
+        // completion and (when it has one) score straight to
+        // `settleAssignmentGrade`, the same qualifying-assignment/
+        // certificate path a human-entered grade goes through. There's
+        // nothing here for the learner to type or attach.
+        <ScormPlayer
+          target={{ assignmentId: assignment.id }}
+          title={assignment.title}
+          onComplete={() => {
+            qc.invalidateQueries({ queryKey: ["mySubmission", assignment.id] });
+            qc.invalidateQueries({ queryKey: ["myAssignments"] });
+          }}
+        />
+      ) : graded ? (
         <div className="flex flex-col gap-4">
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
