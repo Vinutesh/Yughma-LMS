@@ -154,6 +154,7 @@ model User {
   coursesCreated     Course[]             @relation("CourseCreator")
   authSessions       AuthSession[]
   scormLaunchTokens  ScormLaunchToken[]
+  videoProgress      VideoProgress[]
 
   @@unique([orgId, email])
   @@index([orgId])
@@ -423,9 +424,32 @@ model Lesson {
   estimatedMinutes Int?
   scormStatus      ScormPackageStatus?
   scormLaunchTokens ScormLaunchToken[]
+  videoProgress    VideoProgress[]
 
   @@index([courseId])
   @@index([moduleId])
+}
+
+/// Server-side record of how far a learner has actually gotten into a
+/// video lesson — the real anti-cheat mechanism, not just a client-side
+/// scrubber restriction (which a technical user could bypass in devtools).
+/// `courses.setLessonComplete` refuses to mark a video lesson complete
+/// unless this row shows `furthestSeconds` reached (near) `durationSeconds`,
+/// so completion can't be forced without actually watching it. One row per
+/// (user, lesson); `furthestSeconds` only ever grows, so the frontend's
+/// seek-blocking (can't scrub past this point) survives a reload too.
+model VideoProgress {
+  id              String   @id @default(cuid())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId        String
+  furthestSeconds Float    @default(0)
+  durationSeconds Float?
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([lessonId])
 }
 
 enum EnrollmentStatus {

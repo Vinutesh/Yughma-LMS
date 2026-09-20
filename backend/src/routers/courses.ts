@@ -457,6 +457,25 @@ export const coursesRouter = router({
       const course = await ctx.rawDb.course.findUnique({ where: { id: enrollment.courseId } });
       if (!course) throw new TRPCError({ code: "NOT_FOUND", message: "Course not found." });
 
+      // A video lesson can't be forced complete without actually watching
+      // it — there is no "Mark complete" button for video anymore
+      // (removed per client request: a learner must not be able to scrub
+      // to the end and finish). This re-checks server-side against
+      // `VideoProgress`, not just the frontend's own seek-blocking, which
+      // a technical user could bypass by calling this mutation directly.
+      // 1.5s tolerance for rounding/buffering around the true end.
+      if (input.complete) {
+        const lesson = await ctx.rawDb.lesson.findUnique({ where: { id: input.lessonId } });
+        if (lesson?.contentType === "video") {
+          const progress = await ctx.rawDb.videoProgress.findUnique({
+            where: { userId_lessonId: { userId: ctx.session.userId, lessonId: input.lessonId } },
+          });
+          if (!progress?.durationSeconds || progress.furthestSeconds < progress.durationSeconds - 1.5) {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Watch the video to the end before completing this lesson." });
+          }
+        }
+      }
+
       const completedLessonIds = input.complete
         ? [...new Set([...enrollment.completedLessonIds, input.lessonId])]
         : enrollment.completedLessonIds.filter((id) => id !== input.lessonId);
@@ -507,4 +526,47 @@ export const coursesRouter = router({
 
       return { courseCompleted: true, certificateId, pathCompletion };
     }),
+
+  /**
+   * The actual anti-cheat record: how far this learner has genuinely
+   * played into a video, called periodically by the player as it plays
+   * (not just once at the end). `furthestSeconds` only ever grows — a
+   * lower report (e.g. after a rewind) never overwrites a higher one — so
+   * scrubbing backward and forward again can't erase real progress
+   * already made. `setLessonComplete` reads this row back to decide
+   * whether a video lesson is actually allowed to complete.
+   */
+  reportVideoProgress: protectedProcedure
+    .input(z.object({ lessonId: z.string(), currentTime: z.number().min(0), duration: z.number().min(0) }))
+    .mutation(async ({ ctx, input }) => {
+      const lesson = await ctx.rawDb.lesson.findUnique({ where: { id: input.lessonId } });
+      if (!lesson) throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found." });
+
+      const enrollment = await ctx.rawDb.enrollment.findUnique({
+        where: { courseId_userId: { courseId: lesson.courseId, userId: ctx.session.userId } },
+      });
+      if (!enrollment || enrollment.status === "requested") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not enrolled in this course." });
+      }
+
+      const existing = await ctx.rawDb.videoProgress.findUnique({
+        where: { userId_lessonId: { userId: ctx.session.userId, lessonId: input.lessonId } },
+      });
+      await ctx.rawDb.videoProgress.upsert({
+        where: { userId_lessonId: { userId: ctx.session.userId, lessonId: input.lessonId } },
+        create: { userId: ctx.session.userId, lessonId: input.lessonId, furthestSeconds: input.currentTime, durationSeconds: input.duration },
+        update: { furthestSeconds: Math.max(existing?.furthestSeconds ?? 0, input.currentTime), durationSeconds: input.duration },
+      });
+      return { ok: true };
+    }),
+
+  /** Resume point for the seek-blocking scrubber — the furthest this
+   * learner has already watched, so reopening a video mid-course doesn't
+   * reset the boundary back to zero. */
+  getVideoProgress: protectedProcedure.input(z.object({ lessonId: z.string() })).query(async ({ ctx, input }) => {
+    const progress = await ctx.rawDb.videoProgress.findUnique({
+      where: { userId_lessonId: { userId: ctx.session.userId, lessonId: input.lessonId } },
+    });
+    return { furthestSeconds: progress?.furthestSeconds ?? 0, durationSeconds: progress?.durationSeconds ?? null };
+  }),
 });

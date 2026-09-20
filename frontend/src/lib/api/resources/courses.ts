@@ -265,3 +265,26 @@ export async function setLessonComplete(
   }
 }
 
+/** Reports how far into a video lesson this learner has actually played —
+ * the server-side record `setLessonComplete` checks before allowing a
+ * video lesson to complete. Call periodically while playing, not just
+ * once; a lower report never erases progress already recorded. */
+export async function reportVideoProgress(lessonId: string, currentTime: number, duration: number): Promise<void> {
+  try {
+    await trpcClient.courses.reportVideoProgress.mutate({ lessonId, currentTime, duration });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+/** The resume point for the video player's seek-blocking — how far this
+ * learner has already watched, so reopening a lesson doesn't reset the
+ * scrubber boundary back to zero. */
+export async function getVideoProgress(lessonId: string): Promise<{ furthestSeconds: number; durationSeconds: number | null }> {
+  try {
+    return await trpcClient.courses.getVideoProgress.query({ lessonId });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
