@@ -155,6 +155,7 @@ model User {
   authSessions       AuthSession[]
   scormLaunchTokens  ScormLaunchToken[]
   videoProgress      VideoProgress[]
+  scormProgress      ScormProgress[]
 
   @@unique([orgId, email])
   @@index([orgId])
@@ -337,6 +338,39 @@ model ScormLaunchToken {
   @@index([assignmentId])
 }
 
+/// The actual SCORM "bookmark" — `cmi.suspend_data`, the package's own
+/// internal save state (which slide/question it was on), persisted across
+/// launches so reopening a package resumes it instead of restarting from
+/// the beginning. Distinct from `ScormLaunchToken` (a short-lived, one-
+/// session credential) and from `Submission`/`Enrollment.completedLessonIds`
+/// (the outcome once finished) — this is what a package reads back via
+/// `LMSGetValue("cmi.suspend_data")` on its *next* launch, updated on every
+/// progress report during a session, not just at the end. One row per
+/// (user, lesson) or (user, assignment) — exactly one of those is ever set,
+/// mirroring `ScormLaunchToken`'s own shape.
+model ScormProgress {
+  id           String      @id @default(cuid())
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  lesson       Lesson?     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId     String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String?
+  suspendData  String      @default("")
+  updatedAt    DateTime    @updatedAt
+
+  // Deliberately no `@@unique` here: with `lessonId`/`assignmentId` each
+  // nullable and always exactly one of them set, SQL's "NULL is never equal
+  // to NULL" rule means a unique index on either column pair would silently
+  // fail to catch a real duplicate the moment that column is null for both
+  // rows — a well-known footgun, not an oversight. `scorm.ts`'s find-then-
+  // create-or-update instead enforces "one row per (user, lesson-or-
+  // assignment)" in application code, the same way `ScormLaunchToken`
+  // handles this identical lessonId/assignmentId shape.
+  @@index([userId, lessonId])
+  @@index([userId, assignmentId])
+}
+
 // ---------------------------------------------------------------------------
 // Courses, Lessons, Enrollments
 // ---------------------------------------------------------------------------
@@ -425,6 +459,7 @@ model Lesson {
   scormStatus      ScormPackageStatus?
   scormLaunchTokens ScormLaunchToken[]
   videoProgress    VideoProgress[]
+  scormProgress    ScormProgress[]
 
   @@index([courseId])
   @@index([moduleId])
@@ -514,6 +549,7 @@ model Assignment {
 
   submissions Submission[]
   scormLaunchTokens ScormLaunchToken[]
+  scormProgress ScormProgress[]
 
   @@index([orgId])
   @@index([courseId])
@@ -528,7 +564,19 @@ model Submission {
   submittedAt    DateTime   @default(now())
   text           String?
   assetId        String?
+  /// Informational only now — no longer what decides pass/fail. A SCORM
+  /// assessment reports its own outcome via `passed` below (its own
+  /// `cmi.core.lesson_status` of "passed"/"failed"), since a package can be
+  /// internally configured to require its own score threshold and simply
+  /// never report success at all below it — comparing a raw score against
+  /// `Assignment.passingScorePercent` here would have been redundant with,
+  /// and could disagree with, that decision the package already made.
   score          Int?
+  /// The actual certificate-gating signal for a SCORM assessment: true once
+  /// the package reports "passed" (or a neutral "completed" — same shape as
+  /// `lessonStatus` values `courses.ts`/`scorm/shim.ts` already use), false
+  /// on an explicit "failed", null while still in progress/never attempted.
+  passed         Boolean?
   feedback       String?
   gradedByUserId String?
   gradedAt       DateTime?

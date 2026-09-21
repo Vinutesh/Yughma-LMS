@@ -92,16 +92,19 @@ export function GradingPanel({
 
         <div className="mt-4 border-t border-border pt-4">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-            Score
+            Outcome
           </p>
-          {submission.score !== undefined ? (
+          {submission.passed === true ? (
             <p className="text-sm text-text-secondary">
-              {submission.score}/{assignment.pointsPossible} — graded automatically by the
-              assessment itself.
+              Passed — reported automatically by the assessment itself.
+            </p>
+          ) : submission.passed === false ? (
+            <p className="text-sm text-text-secondary">
+              Failed — reported automatically by the assessment itself.
             </p>
           ) : (
             <p className="text-xs text-text-tertiary">
-              Not scored yet — this comes from the assessment once it&apos;s completed, not from a
+              Not decided yet — this comes from the assessment once it&apos;s completed, not from a
               manual review.
             </p>
           )}
@@ -124,7 +127,7 @@ export function GradingPanel({
             <DialogTitle>Delete {submission.learnerName}&apos;s submission?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-text-secondary">
-            This permanently removes their submitted response and score. This cannot be undone.
+            This permanently removes their submitted response and outcome. This cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setConfirmDelete(false)}>

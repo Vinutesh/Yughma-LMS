@@ -31,8 +31,8 @@ export default function SubmissionQueuePage() {
     enabled: canEdit,
   });
 
-  const ungraded = useMemo(() => submissions.filter((s) => s.score === undefined), [submissions]);
-  const graded = useMemo(() => submissions.filter((s) => s.score !== undefined), [submissions]);
+  const ungraded = useMemo(() => submissions.filter((s) => s.passed === undefined), [submissions]);
+  const graded = useMemo(() => submissions.filter((s) => s.passed !== undefined), [submissions]);
   const grading = submissions.find((s) => s.id === gradingId) ?? null;
 
   if (!canEdit) return <AccessDenied title="Submissions" />;
@@ -58,25 +58,23 @@ export default function SubmissionQueuePage() {
 
       <Tabs defaultValue="ungraded">
         <TabsList>
-          <TabsTrigger value="ungraded">Ungraded ({ungraded.length})</TabsTrigger>
-          <TabsTrigger value="graded">Graded ({graded.length})</TabsTrigger>
+          <TabsTrigger value="ungraded">Pending ({ungraded.length})</TabsTrigger>
+          <TabsTrigger value="graded">Decided ({graded.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="ungraded">
           <SubmissionList
             submissions={ungraded}
             isLoading={isLoading}
-            emptyLabel="Nothing waiting to be graded."
+            emptyLabel="Nothing pending."
             onOpen={setGradingId}
-            pointsPossible={assignment.pointsPossible}
           />
         </TabsContent>
         <TabsContent value="graded">
           <SubmissionList
             submissions={graded}
             isLoading={isLoading}
-            emptyLabel="No graded submissions yet."
+            emptyLabel="No decided submissions yet."
             onOpen={setGradingId}
-            pointsPossible={assignment.pointsPossible}
           />
         </TabsContent>
       </Tabs>
@@ -98,13 +96,11 @@ function SubmissionList({
   isLoading,
   emptyLabel,
   onOpen,
-  pointsPossible,
 }: {
   submissions: assignmentsApi.SubmissionWithLearner[];
   isLoading: boolean;
   emptyLabel: string;
   onOpen: (id: string) => void;
-  pointsPossible: number;
 }) {
   if (isLoading) return <p className="text-sm text-text-tertiary">Loading submissions...</p>;
   if (submissions.length === 0) {
@@ -133,10 +129,8 @@ function SubmissionList({
             })}
           </span>
           {s.late && <Badge variant="danger">Late</Badge>}
-          {s.score !== undefined && (
-            <Badge variant="success">
-              {s.score}/{pointsPossible}
-            </Badge>
+          {s.passed !== undefined && (
+            <Badge variant={s.passed ? "success" : "danger"}>{s.passed ? "Passed" : "Failed"}</Badge>
           )}
         </button>
       ))}

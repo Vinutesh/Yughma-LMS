@@ -1,17 +1,19 @@
 import { useEffect, useState, type RefObject } from "react";
 
 /**
- * Tries to enter real browser fullscreen on the given element as soon as
- * it mounts. Browsers often reject `requestFullscreen()` unless it's called
- * synchronously inside a user gesture — a fresh tab's own mount script
- * usually doesn't count, even though `window.open()` opened it — so this
- * exposes `blocked` for the caller to show an explicit "Enter fullscreen"
- * button as a fallback; a real click on that button always satisfies the
- * gesture requirement.
+ * Tracks real browser fullscreen on the given element and exposes `enter()`
+ * to request it. `enter()` must be called synchronously from an actual user
+ * gesture (a click) — browsers reject `requestFullscreen()` otherwise, and a
+ * fresh tab's own mount/effect never counts as one even though `window.open()`
+ * opened it. See the play pages' "begin" gate: they call this from the
+ * button's own `onClick`, not from an effect on mount — an earlier version
+ * tried the mount-effect approach and had a second bug on top of that
+ * unreliability: the ref it auto-attempted on was still null while the page
+ * was in its loading state, so the attempt silently no-opped and the
+ * fallback button (gated on the attempt having failed) never appeared either.
  */
-export function useAutoFullscreen(ref: RefObject<HTMLElement | null>) {
+export function useFullscreenState(ref: RefObject<HTMLElement | null>) {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     function onChange() {
@@ -22,19 +24,8 @@ export function useAutoFullscreen(ref: RefObject<HTMLElement | null>) {
   }, [ref]);
 
   function enter() {
-    const el = ref.current;
-    if (!el) return;
-    el.requestFullscreen()
-      .then(() => setBlocked(false))
-      .catch(() => setBlocked(true));
+    return ref.current?.requestFullscreen().catch(() => {}) ?? Promise.resolve();
   }
 
-  useEffect(() => {
-    enter();
-    // Attempt once on mount only — repeated auto-attempts would just keep
-    // failing the same way if the browser blocked the first one.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { isFullscreen, blocked, enter };
+  return { isFullscreen, enter };
 }

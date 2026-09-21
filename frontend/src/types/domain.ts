@@ -290,7 +290,13 @@ export interface Submission {
   submittedAt: string;
   text?: string;
   assetId?: string;
+  /** Informational only now — no longer what decides pass/fail. See
+   * `passed`. */
   score?: number;
+  /** The real outcome, reported by the SCORM assessment itself — true on a
+   * pass, false on an explicit fail, undefined while still in progress or
+   * never attempted. */
+  passed?: boolean;
   feedback?: string;
   gradedByUserId?: string;
   gradedAt?: string;

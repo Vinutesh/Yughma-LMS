@@ -86,12 +86,23 @@ const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
 const SUB_RESOURCE_CACHE = "private, max-age=31536000, immutable";
 
 /**
- * The initial CMI state a re-opened package should see — "have I already
- * finished this?" and, for an assignment, "what did I score last time?".
- * Branches on which of `lessonId`/`assignmentId` the launch token carries
- * (see `ScormLaunchToken`'s own doc comment: exactly one is ever set).
+ * The initial CMI state a re-opened package should see: its own bookmark
+ * (`suspendData` — see `ScormProgress`'s schema comment; this used to be
+ * hardcoded to `""` on every launch, which is why reopening a package
+ * always restarted it from the beginning instead of resuming), plus "have I
+ * already finished this, and how" so a package that checks its own prior
+ * status on init sees the real answer. Branches on which of
+ * `lessonId`/`assignmentId` the launch token carries (see
+ * `ScormLaunchToken`'s own doc comment: exactly one is ever set).
  */
 async function loadProgressContext(launchToken: { lessonId: string | null; assignmentId: string | null; userId: string }) {
+  const progress = await rawPrisma.scormProgress.findFirst({
+    where: launchToken.lessonId
+      ? { userId: launchToken.userId, lessonId: launchToken.lessonId }
+      : { userId: launchToken.userId, assignmentId: launchToken.assignmentId! },
+  });
+  const suspendData = progress?.suspendData ?? "";
+
   if (launchToken.lessonId) {
     const lesson = await rawPrisma.lesson.findUnique({ where: { id: launchToken.lessonId } });
     const enrollment = lesson
@@ -100,15 +111,18 @@ async function loadProgressContext(launchToken: { lessonId: string | null; assig
         })
       : null;
     const alreadyDone = !!enrollment && lesson ? enrollment.completedLessonIds.includes(lesson.id) : false;
-    return { alreadyDone, scoreRaw: null as number | null };
+    return { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw: null as number | null, suspendData };
   }
   if (launchToken.assignmentId) {
     const submission = await rawPrisma.submission.findFirst({
       where: { assignmentId: launchToken.assignmentId, userId: launchToken.userId },
     });
-    return { alreadyDone: submission?.score != null, scoreRaw: submission?.score ?? null };
+    // A failed attempt must not be told it was "completed" on reopen — that
+    // would read as a pass to a package checking its own prior status.
+    const lessonStatus = submission?.passed === true ? "passed" : submission?.passed === false ? "failed" : "incomplete";
+    return { lessonStatus, scoreRaw: submission?.score ?? null, suspendData };
   }
-  return { alreadyDone: false, scoreRaw: null as number | null };
+  return { lessonStatus: "incomplete", scoreRaw: null as number | null, suspendData };
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string; path?: string[] }> }) {
@@ -126,11 +140,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
   const isWrapperRequest = path?.length === 1 && path[0] === WRAPPER_SEGMENT;
   if (isWrapperRequest) {
-    const { alreadyDone, scoreRaw } = await loadProgressContext(launchToken);
+    const { lessonStatus, scoreRaw, suspendData } = await loadProgressContext(launchToken);
     const shim = buildScormShimScript({
       token,
       progressUrl: `/api/scorm/${token}/progress`,
-      initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw, suspendData: "" },
+      initial: { lessonStatus, scoreRaw, suspendData },
     });
     const html = `<!doctype html>
 <html>
@@ -184,11 +198,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   // directly into the launch page itself, same-origin with this app, no
   // wrapper. Only works for SCOs that check their own window for the API —
   // see this file's own top comment.
-  const { alreadyDone, scoreRaw } = await loadProgressContext(launchToken);
+  const { lessonStatus, scoreRaw, suspendData } = await loadProgressContext(launchToken);
   const shim = buildScormShimScript({
     token,
     progressUrl: `/api/scorm/${token}/progress`,
-    initial: { lessonStatus: alreadyDone ? "completed" : "incomplete", scoreRaw, suspendData: "" },
+    initial: { lessonStatus, scoreRaw, suspendData },
   });
 
   // Still injected as defense-in-depth for packages that *do* use normal

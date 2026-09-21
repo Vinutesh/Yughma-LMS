@@ -32,6 +32,7 @@ export default function ManageAssignmentsPage() {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [attachFileFor, setAttachFileFor] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<assignmentsApi.AssignmentSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { data: assignments = [], isLoading } = useQuery({
@@ -42,7 +43,10 @@ export default function ManageAssignmentsPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => assignmentsApi.deleteAssignment(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["assignments"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["assignments"] });
+      setConfirmDelete(null);
+    },
     onError: (err) => {
       if (err instanceof ApiError) setError(err.message);
     },
@@ -141,7 +145,7 @@ export default function ManageAssignmentsPage() {
                 </TableTd>
                 <TableTd>
                   {a.isQualifying ? (
-                    <Badge variant="success">Qualifying · {a.passingScorePercent}% to pass</Badge>
+                    <Badge variant="success">Qualifying</Badge>
                   ) : (
                     <span className="text-xs text-text-tertiary">—</span>
                   )}
@@ -170,7 +174,13 @@ export default function ManageAssignmentsPage() {
                         destructive
                         onSelect={() => {
                           setError(null);
-                          remove.mutate(a.id);
+                          // A quick confirm when there's real work at stake
+                          // (existing submissions), skipped entirely for a
+                          // fresh assignment nobody's touched yet — this is
+                          // not the old hard block that refused the delete
+                          // outright with no way past it.
+                          if (a.submissionCount > 0) setConfirmDelete(a);
+                          else remove.mutate(a.id);
                         }}
                       >
                         Delete
@@ -202,6 +212,31 @@ export default function ManageAssignmentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete &quot;{confirmDelete?.title}&quot;?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            {confirmDelete?.submissionCount} {confirmDelete?.submissionCount === 1 ? "person has" : "people have"}{" "}
+            already submitted to this — deleting it removes their submissions too. This cannot be
+            undone.
+          </p>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirmDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              loading={remove.isPending}
+              onClick={() => confirmDelete && remove.mutate(confirmDelete.id)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -222,7 +257,6 @@ function CreateAssignmentDialog({
   const [submissionType, setSubmissionType] = useState<SubmissionType>("text");
   const [points, setPoints] = useState("20");
   const [isQualifying, setIsQualifying] = useState(false);
-  const [passingScorePercent, setPassingScorePercent] = useState("85");
   const [assetId, setAssetId] = useState<string | undefined>(undefined);
   const [assetName, setAssetName] = useState<string | undefined>(undefined);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -243,7 +277,6 @@ function CreateAssignmentDialog({
         submissionType,
         pointsPossible: Number(points),
         isQualifying,
-        passingScorePercent: Number(passingScorePercent),
         assetId,
       }),
     onSuccess: () => {
@@ -253,7 +286,6 @@ function CreateAssignmentDialog({
       setInstructions("");
       setDueAt("");
       setIsQualifying(false);
-      setPassingScorePercent("85");
       setAssetId(undefined);
       setAssetName(undefined);
       setError(null);
@@ -389,24 +421,11 @@ function CreateAssignmentDialog({
               Qualifying assignment for this course&apos;s certificate
             </label>
             <p className="text-xs text-text-tertiary">
-              If the course has a certificate, it won&apos;t be issued until this assignment is
-              graded at or above the passing score below — even if every lesson is complete. Only
-              one qualifying assignment is allowed per course.
+              If the course has a certificate, it won&apos;t be issued until this assignment
+              reports a pass — even if every lesson is complete. A SCORM assessment decides
+              pass/fail itself; there&apos;s nothing to configure here. Only one qualifying
+              assignment is allowed per course.
             </p>
-            {isQualifying && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="a-passing">Passing score (%)</Label>
-                <Input
-                  id="a-passing"
-                  type="number"
-                  min={1}
-                  max={100}
-                  className="w-24"
-                  value={passingScorePercent}
-                  onChange={(e) => setPassingScorePercent(e.target.value)}
-                />
-              </div>
-            )}
           </div>
         </div>
 

@@ -108,7 +108,12 @@ function AssignmentBody({
     },
   });
 
-  const graded = submission?.score !== undefined;
+  // `passed` only ever gets set by a SCORM package's own reported outcome
+  // (see settleAssignmentGrade) — there's no manual grading anymore, so a
+  // text/file submission just stays "submitted", never passed or failed.
+  const passed = submission?.passed === true;
+  const failed = submission?.passed === false;
+  const graded = passed || failed;
   const wantsText = assignment.submissionType !== "file";
   const wantsFile = assignment.submissionType !== "text";
   const attached = assets.find((a) => a.id === assetId);
@@ -133,9 +138,7 @@ function AssignmentBody({
       <div className="mb-1 flex items-start justify-between gap-4">
         <h1 className="text-xl font-semibold text-text-primary">{assignment.title}</h1>
         {graded ? (
-          <Badge variant="success">
-            Graded: {submission!.score}/{assignment.pointsPossible}
-          </Badge>
+          <Badge variant={passed ? "success" : "danger"}>{passed ? "Passed" : "Failed"}</Badge>
         ) : (
           dueLabel && (
             <span className="shrink-0 text-xs text-text-tertiary">
@@ -180,10 +183,14 @@ function AssignmentBody({
         // goes through, so this page just needs to notice when it's back
         // in focus (the effect above) rather than track progress itself.
         <Card className="flex flex-col items-center gap-3 p-8 text-center">
-          {graded ? (
+          {passed ? (
             <p className="text-sm text-text-secondary">
-              You finished this on{" "}
+              You passed this on{" "}
               {new Date(submission!.submittedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.
+            </p>
+          ) : failed ? (
+            <p className="text-sm text-text-secondary">
+              You didn&apos;t pass this attempt — give it another try when you&apos;re ready.
             </p>
           ) : (
             <p className="text-sm text-text-secondary">
@@ -193,7 +200,7 @@ function AssignmentBody({
           )}
           <Button onClick={() => window.open(`/assignments/${assignment.id}/play`, "_blank")}>
             <ExternalLink className="mr-1.5 size-3.5" aria-hidden />
-            {graded ? "Redo assignment" : "Start assignment"}
+            {failed ? "Try again" : passed ? "Redo assignment" : "Start assignment"}
           </Button>
         </Card>
       ) : graded ? (
@@ -268,7 +275,7 @@ function AssignmentBody({
                   month: "short",
                   day: "numeric",
                 })}{" "}
-                — not graded yet
+                — submitted
               </span>
             )}
           </div>

@@ -186,19 +186,17 @@ export interface LearnerAssignment extends AssignmentSummary {
   submission: Submission | null;
 }
 
-/** Whether this learner has already cleared a qualifying assignment's
- * passing score — shared by the course page (whether to show a "take the
- * assessment" prompt) and the lesson viewer (whether finishing the last
- * lesson should redirect straight to it). A missing/null score always
- * means "not yet", never a pass. */
-export function isAssignmentPassed(a: {
-  pointsPossible: number;
-  passingScorePercent: number;
-  submission: Submission | null;
-}): boolean {
-  const score = a.submission?.score;
-  if (score === undefined || score === null) return false;
-  return (score / a.pointsPossible) * 100 >= a.passingScorePercent;
+/** Whether this learner has already passed a qualifying assessment —
+ * shared by the course page (whether to show a "take the assessment"
+ * prompt) and the lesson viewer (whether finishing the last lesson should
+ * redirect straight to it). Reads the assessment's own reported outcome,
+ * not a score comparison — a package can require its own threshold
+ * internally and simply never report success below it, so there's no
+ * separate percentage math to redo here. Not yet attempted or still in
+ * progress (`passed` is `undefined`) always means "not yet", same as an
+ * explicit fail. */
+export function isAssignmentPassed(a: { submission: Submission | null }): boolean {
+  return a.submission?.passed === true;
 }
 
 /** Assignments across every course the learner is actively enrolled in. */

@@ -54,7 +54,8 @@ export default function LearnerAssignmentsPage() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {assignments.map((a) => {
-            const graded = a.submission?.score !== undefined;
+            const passed = a.submission?.passed === true;
+            const failed = a.submission?.passed === false;
             const submitted = !!a.submission;
             const overdue = !submitted && !!a.dueAt && new Date(a.dueAt) < new Date();
             return (
@@ -75,10 +76,10 @@ export default function LearnerAssignmentsPage() {
                       })}`}
                   </p>
                 </div>
-                {graded ? (
-                  <Badge variant="success">
-                    {a.submission!.score}/{a.pointsPossible}
-                  </Badge>
+                {passed ? (
+                  <Badge variant="success">Passed</Badge>
+                ) : failed ? (
+                  <Badge variant="danger">Failed</Badge>
                 ) : submitted ? (
                   <Badge variant="accent">Submitted</Badge>
                 ) : overdue ? (

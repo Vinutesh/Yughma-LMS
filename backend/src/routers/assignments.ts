@@ -37,7 +37,7 @@ async function summarize(db: RawDb, assignment: Awaited<ReturnType<ScopedDb["ass
     ...assignment,
     courseTitle: course?.title ?? "Unknown course",
     submissionCount: submissions.length,
-    ungradedCount: submissions.filter((s) => s.score === null).length,
+    ungradedCount: submissions.filter((s) => s.passed === null).length,
   };
 }
 
@@ -68,27 +68,30 @@ async function hasEditPermission(db: ScopedDb, roleIds: string[]): Promise<boole
 }
 
 /**
- * Grading a qualifying assignment can be what finally unlocks the learner's
- * certificate — they may well have finished every lesson already and just
- * been waiting on this score. Only fires once they've also passed the
- * threshold AND the course itself is otherwise done; `issueCertificate` is
+ * A qualifying assignment reporting a real pass can be what finally unlocks
+ * the learner's certificate — they may well have finished every lesson
+ * already and just been waiting on this outcome. Only fires on an actual
+ * pass AND once the course itself is otherwise done; `issueCertificate` is
  * idempotent, so calling this again for someone who already passed (and was
  * already issued a certificate) is a harmless no-op.
  *
- * Exported so both `grade` (a staff member scoring a submission by hand)
- * and the SCORM progress webhook (`frontend/src/app/api/scorm/[token]/
- * progress/route.ts`, a package self-reporting its own score) settle a pass
- * through the exact same path, rather than the webhook re-implementing this
- * decision or — worse — impersonating a staff member to call `grade`
- * itself, which it has no permission to do.
+ * Takes a plain `passed: boolean`, not a score — a SCORM assessment package
+ * can be configured with its own internal passing threshold and simply
+ * never report success below it (`cmi.core.lesson_status` of "failed"
+ * rather than "passed"), so comparing a raw score against
+ * `Assignment.passingScorePercent` here would be redundant with, and could
+ * disagree with, a decision the package already made itself. There is no
+ * manual grading anymore for this to also serve — the SCORM progress
+ * webhook (`frontend/src/app/api/scorm/[token]/progress/route.ts`) is the
+ * only caller.
  */
 export async function settleAssignmentGrade(
   rawDb: RawDb,
-  assignment: { courseId: string; isQualifying: boolean; passingScorePercent: number; pointsPossible: number },
+  assignment: { courseId: string; isQualifying: boolean },
   learnerUserId: string,
-  score: number,
+  passed: boolean,
 ): Promise<void> {
-  if (!assignment.isQualifying || (score / assignment.pointsPossible) * 100 < assignment.passingScorePercent) return;
+  if (!assignment.isQualifying || !passed) return;
 
   const [course, enrollment] = await Promise.all([
     rawDb.course.findUnique({ where: { id: assignment.courseId } }),
@@ -278,13 +281,13 @@ export const assignmentsRouter = router({
       const assignment = await ctx.db.assignment.findUnique({ where: { id: input.assignmentId } });
       if (!assignment) throw new TRPCError({ code: "NOT_FOUND", message: "Assignment not found." });
 
-      const submissionCount = await ctx.db.submission.count({ where: { assignmentId: input.assignmentId } });
-      if (submissionCount > 0) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "People have already submitted to this assignment. It can't be deleted.",
-        });
-      }
+      // Deletable regardless of existing submissions, per explicit client
+      // request — `Submission.assignment` is already `onDelete: Cascade` in
+      // the schema, so this removes them along with it rather than needing
+      // to delete them first. This used to refuse outright ("People have
+      // already submitted to this assignment. It can't be deleted.") the
+      // moment even one submission existed, with no way past it short of
+      // deleting each submission individually first.
       await ctx.db.assignment.delete({ where: { id: input.assignmentId } });
       return { ok: true };
     }),
@@ -297,7 +300,13 @@ export const assignmentsRouter = router({
 
       const [submissions, users] = await Promise.all([
         ctx.db.submission.findMany({ where: { assignmentId: input.assignmentId } }),
-        ctx.db.user.findMany({ select: { id: true, name: true } }),
+        // `ctx.db` is scoped to the *caller's* org (always the platform
+        // org, since only its staff hold `courses:view`) — every real
+        // submission comes from a learner in a client org, so that scoped
+        // lookup could never find any of them and this always fell back to
+        // "Unknown". `rawDb`, deliberately crossing that boundary, the same
+        // way `platform.ts`'s cross-org reads already do.
+        ctx.rawDb.user.findMany({ select: { id: true, name: true } }),
       ]);
       const userName = new Map(users.map((u) => [u.id, u.name]));
       return submissions.map((s) => ({

@@ -5,6 +5,28 @@ import { appRouter } from "yughma-backend/dist/routers/_app.js";
 import { settleAssignmentGrade } from "yughma-backend/dist/routers/assignments.js";
 
 /**
+ * Persists the actual SCORM "bookmark" (`cmi.suspend_data`) on every report,
+ * not just at completion — a package updates this throughout a session
+ * (which slide/question it's on), and only saving it once at the end would
+ * lose everything if the learner closes the tab mid-way. Exactly one of
+ * `lessonId`/`assignmentId` is passed, mirroring `ScormLaunchToken`'s shape.
+ * No `@@unique` exists on `ScormProgress` for this pair (see its own schema
+ * comment on why one would be unsafe with nullable columns), so this does
+ * the find-then-update-or-create by hand instead of a DB-level upsert.
+ */
+async function saveBookmark(target: { lessonId?: string; assignmentId?: string }, userId: string, suspendData: string) {
+  const where = target.lessonId
+    ? { userId, lessonId: target.lessonId }
+    : { userId, assignmentId: target.assignmentId! };
+  const existing = await rawPrisma.scormProgress.findFirst({ where });
+  if (existing) {
+    await rawPrisma.scormProgress.update({ where: { id: existing.id }, data: { suspendData } });
+  } else {
+    await rawPrisma.scormProgress.create({ data: { userId, ...target, suspendData } });
+  }
+}
+
+/**
  * Receives progress reports from the SCORM API shim (see
  * backend/src/scorm/shim.ts) running inside the sandboxed package iframe —
  * a plain `fetch()` POST, not a tRPC call, since the shim has no access to
@@ -14,7 +36,9 @@ import { settleAssignmentGrade } from "yughma-backend/dist/routers/assignments.j
  * pair it was issued for at launch time, never anything wider.
  *
  * Branches on which of `lessonId`/`assignmentId` the token carries (see
- * `ScormLaunchToken`'s own doc comment: exactly one is ever set).
+ * `ScormLaunchToken`'s own doc comment: exactly one is ever set). Every
+ * report — not just a final/decisive one — saves the bookmark first, before
+ * either branch's own logic below runs.
  *
  * Lesson completion reuses `courses.setLessonComplete` (via
  * `appRouter.createCaller`, same technique the test suite uses) rather than
@@ -22,12 +46,14 @@ import { settleAssignmentGrade } from "yughma-backend/dist/routers/assignments.j
  * course-completion, certificate-issuance, and learning-path settlement
  * logic a normal lesson does.
  *
- * Assignment completion writes the `Submission` row directly — there is no
- * manual grading mutation to call at all anymore; a score only ever comes
- * from here, the assessment package self-reporting how the learner did.
- * `settleAssignmentGrade` (the qualifying-assignment certificate check) is
- * called directly once that score lands, so a passing score unlocks the
- * certificate the moment the assessment itself says it was earned.
+ * Assignment outcomes write the `Submission` row directly — there is no
+ * manual grading mutation to call at all anymore. This reads `lessonStatus`
+ * itself, not a score: a "passed"/"completed" report is a pass, "failed" is
+ * an explicit fail, and anything else (incomplete/browsed/not attempted) is
+ * just a bookmark update, not a real outcome yet. A package can be
+ * internally configured to require its own threshold and simply never
+ * report success below it — that decision is authoritative, not a raw
+ * score compared against a separately-configured percentage here.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -43,7 +69,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   }
   const lessonStatus = typeof body.lessonStatus === "string" ? body.lessonStatus : "incomplete";
   const scoreRaw = typeof body.scoreRaw === "number" && Number.isFinite(body.scoreRaw) ? body.scoreRaw : null;
-  const completed = lessonStatus === "completed" || lessonStatus === "passed";
+  const suspendData = typeof body.suspendData === "string" ? body.suspendData : "";
+
+  await saveBookmark(
+    launchToken.lessonId ? { lessonId: launchToken.lessonId } : { assignmentId: launchToken.assignmentId! },
+    launchToken.userId,
+    suspendData,
+  );
 
   if (launchToken.assignmentId) {
     const assignment = await rawPrisma.assignment.findUnique({ where: { id: launchToken.assignmentId } });
@@ -55,31 +87,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (!enrollment || enrollment.status === "requested") {
       return NextResponse.json({ error: "Not enrolled." }, { status: 403 });
     }
-    if (!completed) return NextResponse.json({ ok: true });
 
-    // SCORM's raw score is conventionally 0-100 regardless of the
-    // assignment's own points scale — convert onto that scale so it reads
-    // the same way a human-entered grade would (and so the qualifying-
-    // assignment percent check below is comparing like with like).
+    // A neutral "completed" (no pass/fail concept in this particular
+    // package) still counts as a pass — there's no failure signal to
+    // withhold the certificate over. "Failed" is the one genuinely negative
+    // outcome; anything else is still in progress, just a bookmark update.
+    const passed = lessonStatus === "passed" || lessonStatus === "completed";
+    const failed = lessonStatus === "failed";
+    if (!passed && !failed) return NextResponse.json({ ok: true });
+
+    // Informational only now (see Submission.score's own schema comment) —
+    // still worth recording if the package happens to report one.
     const score =
       scoreRaw === null ? null : Math.max(0, Math.min(assignment.pointsPossible, Math.round((scoreRaw / 100) * assignment.pointsPossible)));
 
     const existing = await rawPrisma.submission.findFirst({
       where: { assignmentId: assignment.id, userId: launchToken.userId },
     });
-    // A staff member's own manual grade always wins — a later SCORM replay
-    // (e.g. the learner reopening a finished package) must never silently
-    // overwrite a human's decision.
+    // Guards against a legacy manually-graded row from before manual
+    // grading was removed — nothing can set this going forward, but an
+    // old row shouldn't be silently overwritten by a later replay.
     if (existing?.gradedByUserId) return NextResponse.json({ ok: true });
 
     if (existing) {
       await rawPrisma.submission.update({
         where: { id: existing.id },
-        data: {
-          submittedAt: new Date(),
-          score: score ?? existing.score,
-          gradedAt: score !== null ? new Date() : existing.gradedAt,
-        },
+        data: { submittedAt: new Date(), passed, score: score ?? existing.score, gradedAt: new Date() },
       });
     } else {
       await rawPrisma.submission.create({
@@ -87,15 +120,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
           assignmentId: assignment.id,
           userId: launchToken.userId,
           submittedAt: new Date(),
+          passed,
           score: score ?? undefined,
-          gradedAt: score !== null ? new Date() : undefined,
+          gradedAt: new Date(),
           flagged: false,
         },
       });
     }
 
-    if (score !== null) {
-      await settleAssignmentGrade(rawPrisma, assignment, launchToken.userId, score);
+    if (passed) {
+      await settleAssignmentGrade(rawPrisma, assignment, launchToken.userId, true);
     }
     return NextResponse.json({ ok: true });
   }
@@ -113,6 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "Not enrolled." }, { status: 403 });
   }
 
+  const completed = lessonStatus === "completed" || lessonStatus === "passed";
   if (completed) {
     const ctx = {
       session: { userId: user.id, orgId: user.orgId, roleIds: user.roles.map((r: { roleId: string }) => r.roleId) },
