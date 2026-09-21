@@ -161,13 +161,9 @@ export async function submitAssignment(input: {
   }
 }
 
-export async function gradeSubmission(input: { submissionId: string; score: number; feedback: string }): Promise<void> {
-  try {
-    await trpcClient.assignments.grade.mutate(input);
-  } catch (err) {
-    throw toApiError(err);
-  }
-}
+// There is deliberately no more `gradeSubmission` — a score only ever comes
+// from the assessment package itself auto-grading; see `assignments.ts`
+// router's own comment on why the manual grading mutation was removed.
 
 export async function setSubmissionFlag(submissionId: string, flagged: boolean): Promise<void> {
   try {
@@ -188,6 +184,21 @@ export async function deleteSubmission(submissionId: string): Promise<void> {
 
 export interface LearnerAssignment extends AssignmentSummary {
   submission: Submission | null;
+}
+
+/** Whether this learner has already cleared a qualifying assignment's
+ * passing score — shared by the course page (whether to show a "take the
+ * assessment" prompt) and the lesson viewer (whether finishing the last
+ * lesson should redirect straight to it). A missing/null score always
+ * means "not yet", never a pass. */
+export function isAssignmentPassed(a: {
+  pointsPossible: number;
+  passingScorePercent: number;
+  submission: Submission | null;
+}): boolean {
+  const score = a.submission?.score;
+  if (score === undefined || score === null) return false;
+  return (score / a.pointsPossible) * 100 >= a.passingScorePercent;
 }
 
 /** Assignments across every course the learner is actively enrolled in. */

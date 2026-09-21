@@ -11,7 +11,7 @@ type RawDb = typeof rawPrisma;
 /**
  * Mirrors `frontend/src/lib/api/resources/assignments.ts`. `Assignment` is
  * directly tenant-scoped and now lives in the platform org, not the
- * caller's own — manage-side resolvers (create/update/delete/grade/...)
+ * caller's own — manage-side resolvers (create/update/delete/setFlag/...)
  * keep using `ctx.db`, scoped to the caller, since only platform staff ever
  * reach them (`requirePermission("courses", ...)`). Learner-facing resolvers
  * (`get`/`getMySubmission`/`submit`/`mine`) use `ctx.rawDb` instead,
@@ -365,37 +365,13 @@ export const assignmentsRouter = router({
       });
     }),
 
-  grade: requirePermission("courses", "edit")
-    .input(z.object({ submissionId: z.string(), score: z.number().int(), feedback: z.string().max(10_000) }))
-    .mutation(async ({ ctx, input }) => {
-      const resolved = await resolveSubmission(ctx.db, input.submissionId);
-      if (!resolved) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found." });
-      const { assignment, submission } = resolved;
-
-      if (Number.isNaN(input.score) || input.score < 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Enter a score of zero or more." });
-      }
-      if (input.score > assignment.pointsPossible) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Score can't exceed the ${assignment.pointsPossible} points possible.`,
-        });
-      }
-
-      const updated = await ctx.db.submission.update({
-        where: { id: input.submissionId },
-        data: {
-          score: input.score,
-          feedback: input.feedback,
-          gradedByUserId: ctx.session.userId,
-          gradedAt: new Date(),
-        },
-      });
-
-      await settleAssignmentGrade(ctx.rawDb, assignment, submission.userId, input.score);
-
-      return updated;
-    }),
+  // There is deliberately no more `grade` mutation — a submission's score
+  // now only ever comes from `settleAssignmentGrade`, called from the SCORM
+  // progress webhook once the assessment package itself reports how the
+  // learner did. Nobody reviews or types in a score by hand: the whole
+  // point of an assessment package is that it grades itself, and a human
+  // "grading" step on top of that was pure friction that also risked
+  // disagreeing with the certificate the same score already unlocked.
 
   setFlag: requirePermission("courses", "edit")
     .input(z.object({ submissionId: z.string(), flagged: z.boolean() }))

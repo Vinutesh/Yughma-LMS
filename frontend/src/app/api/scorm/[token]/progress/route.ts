@@ -22,14 +22,12 @@ import { settleAssignmentGrade } from "yughma-backend/dist/routers/assignments.j
  * course-completion, certificate-issuance, and learning-path settlement
  * logic a normal lesson does.
  *
- * Assignment completion writes the `Submission` row directly rather than
- * calling `assignments.grade` — that mutation requires `courses:edit`,
- * which the learner (the only real identity this request has) never holds,
- * and impersonating a staff member here would be worse than not reusing
- * the procedure. `settleAssignmentGrade` (the qualifying-assignment
- * certificate check `grade` itself calls) is reused directly instead, so a
- * SCORM-reported passing score unlocks a certificate exactly like a
- * human-entered one does.
+ * Assignment completion writes the `Submission` row directly — there is no
+ * manual grading mutation to call at all anymore; a score only ever comes
+ * from here, the assessment package self-reporting how the learner did.
+ * `settleAssignmentGrade` (the qualifying-assignment certificate check) is
+ * called directly once that score lands, so a passing score unlocks the
+ * certificate the moment the assessment itself says it was earned.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

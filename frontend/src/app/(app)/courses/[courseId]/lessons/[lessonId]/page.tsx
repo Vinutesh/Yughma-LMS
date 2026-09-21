@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useSessionStore } from "@/state/sessionStore";
 import * as coursesApi from "@/lib/api/resources/courses";
 import * as contentApi from "@/lib/api/resources/content";
+import * as assignmentsApi from "@/lib/api/resources/assignments";
+import { isAssignmentPassed } from "@/lib/api/resources/assignments";
 
 /** How long the "Nice work — moving on..." transition shows before
  * auto-navigating, once a video ends or a SCORM package reports done. */
@@ -62,6 +64,17 @@ export default function LessonViewerPage() {
     enabled: enrolled && lesson?.contentType === "video",
   });
 
+  // So finishing the last lesson can go straight to the course's qualifying
+  // assessment instead of just back to the (now-empty) course overview —
+  // see `goNext` below.
+  const { data: myAssignments = [] } = useQuery({
+    queryKey: ["myAssignments", session?.user.id],
+    queryFn: () => assignmentsApi.listMyAssignments(),
+    enabled: enrolled,
+  });
+  const qualifyingAssignment = myAssignments.find((a) => a.courseId === courseId && a.isQualifying);
+  const needsAssessment = !!qualifyingAssignment && !isAssignmentPassed(qualifyingAssignment);
+
   const toggleComplete = useMutation({
     mutationFn: (value: boolean) => coursesApi.setLessonComplete(course!.enrollment!.id, lessonId, value),
     onSuccess: () => {
@@ -72,8 +85,18 @@ export default function LessonViewerPage() {
 
   function goNext() {
     const next = allLessons[index + 1];
-    if (next) router.push(`/courses/${courseId}/lessons/${next.id}`);
-    else router.push(`/courses/${courseId}`);
+    if (next) {
+      router.push(`/courses/${courseId}/lessons/${next.id}`);
+    } else if (needsAssessment) {
+      // Every lesson just finished and there's a qualifying assessment
+      // still standing between here and the certificate — go straight to
+      // it instead of the course overview, so finishing the last video is
+      // what actually prompts taking the assessment, not something the
+      // learner has to notice on their own.
+      router.push(`/assignments/${qualifyingAssignment!.id}`);
+    } else {
+      router.push(`/courses/${courseId}`);
+    }
   }
 
   /** Video ending / SCORM reporting done are the only two "genuinely
@@ -156,10 +179,13 @@ export default function LessonViewerPage() {
   }
 
   if (advancing) {
+    const headingToAssessment = !allLessons[index + 1] && needsAssessment;
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center gap-2 p-8 text-center">
         <CheckCircle2 className="size-8 text-success" aria-hidden />
-        <p className="text-lg font-semibold text-text-primary">Nice work — moving on...</p>
+        <p className="text-lg font-semibold text-text-primary">
+          {headingToAssessment ? "All lessons done — on to the assessment..." : "Nice work — moving on..."}
+        </p>
       </div>
     );
   }
@@ -288,20 +314,23 @@ export default function LessonViewerPage() {
         </Card>
       )}
 
-      <div className="mt-6 flex items-center justify-end gap-3 border-t border-border pt-4">
-        {complete ? (
-          next ? (
-            <Button onClick={() => router.push(`/courses/${courseId}/lessons/${next.id}`)}>
-              Next lesson →
-            </Button>
-          ) : (
-            <Button variant="secondary" onClick={() => router.push(`/courses/${courseId}`)}>
-              Back to course
-            </Button>
-          )
-        ) : (
-          <Button disabled title="Finish this lesson to continue">
-            {next ? "Next lesson →" : "Back to course"}
+      <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-4">
+        {/* Always enabled, regardless of completion — leaving to the course
+            overview never lets anyone skip past required content, so there's
+            no reason this should ever be blocked. It used to be bundled into
+            the same disabled button as "Next lesson" on the last lesson,
+            which meant an unfinished final lesson had no working way back at
+            all. */}
+        <Button variant="secondary" onClick={() => router.push(`/courses/${courseId}`)}>
+          Back to course
+        </Button>
+        {next && (
+          <Button
+            disabled={!complete}
+            title={complete ? undefined : "Finish this lesson to continue"}
+            onClick={() => router.push(`/courses/${courseId}/lessons/${next.id}`)}
+          >
+            Next lesson →
           </Button>
         )}
       </div>

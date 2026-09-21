@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/Badge";
 import { useSessionStore } from "@/state/sessionStore";
 import { usePermission } from "@/hooks/usePermission";
 import * as coursesApi from "@/lib/api/resources/courses";
+import * as assignmentsApi from "@/lib/api/resources/assignments";
+import { isAssignmentPassed } from "@/lib/api/resources/assignments";
 import { gradientForSeed } from "@/lib/utils";
 
 /**
@@ -31,6 +33,14 @@ export default function CourseDetailPage() {
     queryFn: () => coursesApi.getCourse(courseId, true),
     enabled: !!session,
   });
+  // Only needed once every lesson is done, but cheap enough (one shared
+  // query, already used by the Assignments page) to just always fetch —
+  // simpler than gating it behind lesson-completion state.
+  const { data: myAssignments = [] } = useQuery({
+    queryKey: ["myAssignments", session?.user.id],
+    queryFn: () => assignmentsApi.listMyAssignments(),
+    enabled: !!session,
+  });
 
   if (isLoading) return <p className="p-8 text-sm text-text-tertiary">Loading course...</p>;
   if (!course) return <p className="p-8 text-sm text-text-tertiary">Course not found.</p>;
@@ -41,6 +51,13 @@ export default function CourseDetailPage() {
   const allLessons = course.outline.flatMap((m) => m.lessons);
   const nextLesson = allLessons.find((l) => !done.has(l.id));
   const progressPercent = allLessons.length === 0 ? 0 : Math.round((done.size / allLessons.length) * 100);
+
+  // The one assignment (if any) that has to be passed before this course's
+  // certificate can issue — see `courses.ts`'s `qualifyingAssignmentPassed`
+  // on the backend, which this mirrors for display purposes only; the
+  // actual gate is enforced server-side regardless of what this page shows.
+  const qualifyingAssignment = myAssignments.find((a) => a.courseId === courseId && a.isQualifying);
+  const needsAssessment = !!qualifyingAssignment && !isAssignmentPassed(qualifyingAssignment);
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -90,6 +107,17 @@ export default function CourseDetailPage() {
         <p className="mt-4 rounded-md bg-accent-soft p-2.5 text-xs font-medium text-accent-soft-fg">
           Previewing — you don&apos;t have an access grant for this course.
         </p>
+      )}
+
+      {active && !nextLesson && needsAssessment && (
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-md bg-accent-soft p-3 text-accent-soft-fg">
+          <p className="text-sm font-medium">
+            You&apos;ve finished every lesson — take the assessment to earn your certificate.
+          </p>
+          <Button size="sm" onClick={() => router.push(`/assignments/${qualifyingAssignment!.id}`)}>
+            Take the assessment →
+          </Button>
+        </div>
       )}
 
       {course.prerequisites.length > 0 && (
@@ -179,7 +207,11 @@ export default function CourseDetailPage() {
               Continue →
             </Button>
           ) : (
-            <Badge variant="success">Course complete</Badge>
+            // The assessment prompt above is the actual call-to-action once
+            // every lesson is done — this just confirms the lesson side is
+            // finished, whether or not an assessment still stands between
+            // here and the certificate.
+            <Badge variant="success">All lessons complete</Badge>
           ))}
       </div>
     </div>

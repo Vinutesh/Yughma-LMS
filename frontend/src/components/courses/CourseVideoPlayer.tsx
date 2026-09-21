@@ -1,11 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Gauge } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useRef, useState } from "react";
+import { Pause, Play } from "lucide-react";
 import * as coursesApi from "@/lib/api/resources/courses";
-
-const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 /** Only report progress to the server when it's actually moved forward by
  * this much (or on pause/end, unconditionally) — `timeupdate` fires several
@@ -18,24 +15,25 @@ const REPORT_THRESHOLD_SECONDS = 3;
 const SEEK_TOLERANCE_SECONDS = 1;
 
 /**
- * Course lesson video — download deliberately removed per client request
- * (course content stays inside the platform, not saved locally), playback
- * speed added since the native browser controls don't offer one.
+ * Course lesson video — no native browser controls at all, per client
+ * request: no scrubber to drag, no playback-speed menu, nothing but
+ * play/pause. `controls` being absent removes the browser's own seek UI and
+ * the keyboard shortcuts tied to it; the click-to-toggle play/pause below is
+ * this component's own, deliberately minimal, replacement.
  *
- * `controlsList="nodownload"` drops the download button Chrome/Edge render
- * in the native control bar by default; `onContextMenu` blocks the
- * right-click "Save video as..." escape hatch. Neither is a hard technical
- * guarantee against extraction (nothing rendered in a browser ever is —
- * dev tools or a plain network-tab save always remain possible), but it
- * removes every one-click affordance a learner would otherwise see.
+ * `onContextMenu` blocks the right-click "Save video as..." escape hatch —
+ * not a hard technical guarantee against extraction (nothing rendered in a
+ * browser ever is — dev tools or a plain network-tab save always remain
+ * possible), but it removes the one-click affordance a learner would
+ * otherwise see.
  *
  * Forward-seek blocking is the same story: a real anti-cheat measure, not
  * a hard guarantee (devtools can still call the tRPC mutation directly —
  * `courses.setLessonComplete` re-checks the server-recorded furthest point
  * for exactly that reason, so the actual enforcement doesn't live here).
- * This component's job is just to make the honest path the only
- * practical one: dragging the scrubber past what's actually been watched
- * snaps straight back.
+ * With no visible scrubber there's no *normal* way to attempt a seek at
+ * all, but this stays as defense-in-depth against a `currentTime` set
+ * directly (devtools, an extension) rather than through this UI.
  */
 export function CourseVideoPlayer({
   src,
@@ -54,18 +52,13 @@ export function CourseVideoPlayer({
   onEnded?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [rate, setRate] = useState(1);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [percent, setPercent] = useState(0);
 
   const furthestRef = useRef(initialFurthestSeconds);
   const lastReportedRef = useRef(initialFurthestSeconds);
   const resettingRef = useRef(false);
   const endedRef = useRef(false);
-
-  useEffect(() => {
-    furthestRef.current = initialFurthestSeconds;
-    lastReportedRef.current = initialFurthestSeconds;
-  }, [initialFurthestSeconds]);
 
   function report(currentTime: number, duration: number, force: boolean) {
     if (!lessonId || !Number.isFinite(duration) || duration <= 0) return;
@@ -77,25 +70,33 @@ export function CourseVideoPlayer({
     });
   }
 
-  function setSpeed(speed: number) {
-    if (videoRef.current) videoRef.current.playbackRate = speed;
-    setRate(speed);
-    setMenuOpen(false);
+  function togglePlay() {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) video.play();
+    else video.pause();
   }
 
   return (
-    <div className="relative">
+    <div className="relative overflow-hidden rounded-md bg-black">
       <video
         ref={videoRef}
         src={src}
-        controls
-        controlsList="nodownload"
+        disablePictureInPicture
+        disableRemotePlayback
         onContextMenu={(e) => e.preventDefault()}
+        onClick={togglePlay}
+        onPlay={() => setPlaying(true)}
+        onPause={(e) => {
+          setPlaying(false);
+          report(furthestRef.current, e.currentTarget.duration, true);
+        }}
         onLoadedMetadata={(e) => {
           const video = e.currentTarget;
           if (initialFurthestSeconds > 0 && initialFurthestSeconds < video.duration - SEEK_TOLERANCE_SECONDS) {
             video.currentTime = initialFurthestSeconds;
           }
+          if (video.duration > 0) setPercent((furthestRef.current / video.duration) * 100);
         }}
         onSeeking={(e) => {
           const video = e.currentTarget;
@@ -112,15 +113,14 @@ export function CourseVideoPlayer({
           const video = e.currentTarget;
           if (resettingRef.current) return;
           if (video.currentTime > furthestRef.current) furthestRef.current = video.currentTime;
+          if (video.duration > 0) setPercent((furthestRef.current / video.duration) * 100);
           report(video.currentTime, video.duration, false);
-        }}
-        onPause={(e) => {
-          const video = e.currentTarget;
-          report(furthestRef.current, video.duration, true);
         }}
         onEnded={async (e) => {
           const video = e.currentTarget;
           furthestRef.current = video.duration;
+          setPlaying(false);
+          setPercent(100);
           if (endedRef.current) return;
           endedRef.current = true;
           // Awaited, unlike the throttled `report()` calls above — the
@@ -139,36 +139,37 @@ export function CourseVideoPlayer({
           }
           onEnded?.();
         }}
-        className="w-full rounded-md bg-black"
+        className="w-full cursor-pointer"
       />
-      <div className="absolute right-2 top-2">
+
+      {!playing && (
         <button
           type="button"
-          onClick={() => setMenuOpen((o) => !o)}
-          className="flex items-center gap-1.5 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white backdrop-blur hover:bg-black/80"
+          onClick={togglePlay}
+          aria-label="Play"
+          className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
         >
-          <Gauge className="size-3.5" />
-          {rate}×
+          <span className="flex size-16 items-center justify-center rounded-full bg-white/90 text-black shadow-(--shadow-token-lg)">
+            <Play className="size-7 translate-x-0.5" fill="currentColor" aria-hidden />
+          </span>
         </button>
-        {menuOpen && (
-          <div className="motion-menu absolute right-0 top-full mt-1 min-w-20 rounded-md border border-border bg-surface p-1 shadow-(--shadow-token-md)">
-            {SPEEDS.map((speed) => (
-              <button
-                key={speed}
-                type="button"
-                onClick={() => setSpeed(speed)}
-                className={cn(
-                  "block w-full rounded px-2.5 py-1.5 text-left text-xs",
-                  speed === rate
-                    ? "bg-accent-soft font-semibold text-accent-soft-fg"
-                    : "text-text-secondary hover:bg-surface-alt",
-                )}
-              >
-                {speed}×
-              </button>
-            ))}
-          </div>
-        )}
+      )}
+
+      {playing && (
+        <button
+          type="button"
+          onClick={togglePlay}
+          aria-label="Pause"
+          className="absolute bottom-3 right-3 flex size-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur hover:bg-black/80"
+        >
+          <Pause className="size-4" fill="currentColor" aria-hidden />
+        </button>
+      )}
+
+      {/* Purely a "how far along am I" indicator, never a scrubber — there
+          is deliberately no click/drag handler on this bar. */}
+      <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+        <div className="h-full bg-accent transition-[width]" style={{ width: `${percent}%` }} />
       </div>
     </div>
   );

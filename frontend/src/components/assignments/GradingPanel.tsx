@@ -6,14 +6,17 @@ import { Flag } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/Drawer";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
-import { useSessionStore } from "@/state/sessionStore";
 import * as assignmentsApi from "@/lib/api/resources/assignments";
 import type { AssignmentSummary, SubmissionWithLearner } from "@/lib/api/resources/assignments";
-import { ApiError } from "@/lib/api/errors";
 
+/**
+ * A read-only submission viewer — there is deliberately no score/feedback
+ * form here anymore. Scoring comes from the assessment package itself
+ * (see `assignments.ts` router's own comment on why the manual `grade`
+ * mutation was removed), so this is just for oversight: see what someone
+ * submitted, flag one for follow-up, or delete it outright.
+ */
 export function GradingPanel({
   assignment,
   submission,
@@ -23,13 +26,7 @@ export function GradingPanel({
   submission: SubmissionWithLearner | null;
   onClose: () => void;
 }) {
-  const session = useSessionStore((s) => s.session)!;
   const qc = useQueryClient();
-  const [score, setScore] = useState(
-    submission?.score !== undefined ? String(submission.score) : "",
-  );
-  const [feedback, setFeedback] = useState(submission?.feedback ?? "");
-  const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const invalidate = () => {
@@ -37,22 +34,6 @@ export function GradingPanel({
     qc.invalidateQueries({ queryKey: ["assignment", assignment.id] });
     qc.invalidateQueries({ queryKey: ["assignments"] });
   };
-
-  const grade = useMutation({
-    mutationFn: () =>
-      assignmentsApi.gradeSubmission({
-        submissionId: submission!.id,
-        score: Number(score),
-        feedback,
-      }),
-    onSuccess: () => {
-      invalidate();
-      onClose();
-    },
-    onError: (err) => {
-      if (err instanceof ApiError) setError(err.message);
-    },
-  });
 
   const toggleFlag = useMutation({
     mutationFn: () => assignmentsApi.setSubmissionFlag(submission!.id, !submission!.flagged),
@@ -109,46 +90,31 @@ export function GradingPanel({
           )}
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-          {error && (
-            <p className="rounded-md bg-danger-bg p-2.5 text-xs font-medium text-danger">{error}</p>
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+            Score
+          </p>
+          {submission.score !== undefined ? (
+            <p className="text-sm text-text-secondary">
+              {submission.score}/{assignment.pointsPossible} — graded automatically by the
+              assessment itself.
+            </p>
+          ) : (
+            <p className="text-xs text-text-tertiary">
+              Not scored yet — this comes from the assessment once it&apos;s completed, not from a
+              manual review.
+            </p>
           )}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="g-score">Score (out of {assignment.pointsPossible})</Label>
-            <Input
-              id="g-score"
-              type="number"
-              min={0}
-              max={assignment.pointsPossible}
-              value={score}
-              onChange={(e) => setScore(e.target.value)}
-              className="max-w-28"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="g-feedback">Feedback</Label>
-            <textarea
-              id="g-feedback"
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              rows={4}
-              className="rounded-md border border-border bg-surface p-2 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => toggleFlag.mutate()}>
-                <Flag className="size-3.5" />
-                {submission.flagged ? "Unflag" : "Flag for later"}
-              </Button>
-              <Button size="sm" variant="ghost" className="text-danger" onClick={() => setConfirmDelete(true)}>
-                Delete
-              </Button>
-            </div>
-            <Button size="sm" disabled={score === ""} loading={grade.isPending} onClick={() => grade.mutate()}>
-              Save grade
-            </Button>
-          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
+          <Button size="sm" variant="ghost" onClick={() => toggleFlag.mutate()}>
+            <Flag className="size-3.5" />
+            {submission.flagged ? "Unflag" : "Flag for later"}
+          </Button>
+          <Button size="sm" variant="ghost" className="text-danger" onClick={() => setConfirmDelete(true)}>
+            Delete
+          </Button>
         </div>
       </DrawerContent>
 
@@ -158,8 +124,7 @@ export function GradingPanel({
             <DialogTitle>Delete {submission.learnerName}&apos;s submission?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-text-secondary">
-            This permanently removes their submitted response and any score/feedback already
-            given. This cannot be undone.
+            This permanently removes their submitted response and score. This cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setConfirmDelete(false)}>
