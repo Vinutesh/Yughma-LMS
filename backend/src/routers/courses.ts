@@ -5,6 +5,7 @@ import type { ScopedDb } from "../trpc/context.js";
 import type { rawPrisma } from "../db.js";
 import { issueCertificate } from "./certificates.js";
 import { settlePathCompletion } from "./paths.js";
+import { deliverWebhook } from "../webhooks/deliverWebhook.js";
 
 type RawDb = typeof rawPrisma;
 
@@ -240,6 +241,7 @@ export const coursesRouter = router({
       await ctx.db.auditLogEntry.create({
         data: { orgId: ctx.session.orgId, actorUserId: ctx.session.userId, action: "course_published", summary: "Course published", targetLabel: course.title },
       });
+      await deliverWebhook(ctx.rawDb, ctx.session.orgId, "course.published", { courseId: updated.id, title: updated.title }).catch(() => {});
       return updated;
     }),
 
@@ -490,6 +492,12 @@ export const coursesRouter = router({
       });
 
       if (!allDone || wasAlreadyComplete) return { courseCompleted: allDone as boolean, certificateId: undefined as string | undefined };
+
+      await deliverWebhook(ctx.rawDb, ctx.session.orgId, "enrollment.completed", {
+        enrollmentId: enrollment.id,
+        courseId: enrollment.courseId,
+        userId: ctx.session.userId,
+      }).catch(() => {});
 
       // The issued certificate belongs to the LEARNER's own org (so their
       // own company's reports/manager can see it) even though its

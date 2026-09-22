@@ -50,6 +50,7 @@ const TENANT_SCOPED_MODELS = new Set([
   "Integration",
   "Webhook",
   "ApiKeyRecord",
+  "LearnerProfile",
   "XapiStatement",
   "LrsConnection",
   "Thread",

@@ -7,6 +7,7 @@ import { Prisma } from "../generated/prisma/client.js";
 import { resolvePlaybackUrl } from "./content.js";
 import { isStorageConfigured } from "../storage/r2.js";
 import { renderCertificatePdf, type CertificateOverlayLayoutShape } from "../certificates/renderPdf.js";
+import { deliverWebhook } from "../webhooks/deliverWebhook.js";
 
 type RawDb = typeof rawPrisma;
 
@@ -114,7 +115,7 @@ export async function issueCertificate(
   });
   if (existing) return existing;
 
-  return db.certificate.create({
+  const certificate = await db.certificate.create({
     data: {
       orgId: input.orgId,
       templateId: input.templateId,
@@ -125,6 +126,13 @@ export async function issueCertificate(
       verificationCode: await generateVerificationCode(),
     },
   });
+  await deliverWebhook(db, input.orgId, "certificate.issued", {
+    certificateId: certificate.id,
+    userId: certificate.userId,
+    sourceKind: certificate.sourceKind,
+    sourceTitle: certificate.sourceTitle,
+  }).catch(() => {});
+  return certificate;
 }
 
 function decorate(

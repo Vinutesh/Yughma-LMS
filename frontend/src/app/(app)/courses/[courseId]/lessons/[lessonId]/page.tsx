@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ExternalLink, FileText, Film, Package, Lock } from "lucide-react";
 import { CourseVideoPlayer } from "@/components/courses/CourseVideoPlayer";
+import { LessonNotes } from "@/components/courses/LessonNotes";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -246,28 +247,37 @@ export default function LessonViewerPage() {
         ))}
 
       {lesson.contentType === "file" && (
-        <Card className="flex flex-col items-center justify-center gap-2 p-12 text-center">
-          <FileText className="size-8 text-text-tertiary" />
-          <p className="text-sm font-medium text-text-primary">
-            {asset ? asset.name : "No content attached"}
-          </p>
-          {asset?.url ? (
-            <a
-              href={asset.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-accent hover:underline"
-            >
-              Download
-            </a>
-          ) : (
-            <p className="text-xs text-text-tertiary">
-              {asset
-                ? "This file isn't downloadable yet — file storage may not be configured."
-                : "The instructor hasn't attached a file yet."}
-            </p>
+        <>
+          {asset?.url && asset.name.toLowerCase().endsWith(".pdf") && (
+            <iframe
+              src={asset.url}
+              title={asset.name}
+              className="mb-3 h-[70vh] w-full rounded-md border border-border"
+            />
           )}
-        </Card>
+          <Card className="flex flex-col items-center justify-center gap-2 p-12 text-center">
+            <FileText className="size-8 text-text-tertiary" />
+            <p className="text-sm font-medium text-text-primary">
+              {asset ? asset.name : "No content attached"}
+            </p>
+            {asset?.url ? (
+              <a
+                href={asset.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-accent hover:underline"
+              >
+                Download
+              </a>
+            ) : (
+              <p className="text-xs text-text-tertiary">
+                {asset
+                  ? "This file isn't downloadable yet — file storage may not be configured."
+                  : "The instructor hasn't attached a file yet."}
+              </p>
+            )}
+          </Card>
+        </>
       )}
 
       {lesson.contentType === "scorm" && (
@@ -313,6 +323,8 @@ export default function LessonViewerPage() {
           </Button>
         </Card>
       )}
+
+      <LessonNotes lessonId={lesson.id} />
 
       <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-4">
         {/* Always enabled, regardless of completion — leaving to the course

@@ -21,6 +21,8 @@ import { pathsRouter } from "./paths.js";
 import { learningPlansRouter } from "./learningPlans.js";
 import { skillsRouter } from "./skills.js";
 import { platformRouter } from "./platform.js";
+import { learnerProfileRouter } from "./learnerProfile.js";
+import { notesRouter } from "./notes.js";
 
 /**
  * Root router. Add one sub-router per resource-client file as it migrates —
@@ -51,6 +53,8 @@ export const appRouter = router({
   integrations: integrationsRouter,
   scorm: scormRouter,
   platform: platformRouter,
+  learnerProfile: learnerProfileRouter,
+  notes: notesRouter,
 });
 
 export type AppRouter = typeof appRouter;

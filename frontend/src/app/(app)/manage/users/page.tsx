@@ -22,6 +22,7 @@ import * as usersApi from "@/lib/api/resources/users";
 import * as orgsApi from "@/lib/api/resources/organizations";
 import * as rolesApi from "@/lib/api/resources/roles";
 import { ApiError } from "@/lib/api/errors";
+import { nameFromEmail } from "@/lib/nameFromEmail";
 import type { Role, User } from "@/types/domain";
 
 export default function UsersPage() {
@@ -182,18 +183,6 @@ function InviteDialog({
       onDone();
     },
   });
-
-  /** A display name is required on the account, so seed it from the email's
-   * local part ("manish.naik@..." → "Manish Naik") and leave it editable
-   * rather than silently inventing one that can't be corrected. */
-  function nameFromEmail(email: string): string {
-    return email
-      .split("@")[0]
-      .split(/[._-]+/)
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ");
-  }
 
   /** The typed-but-not-yet-committed email, as a row — or null if it isn't
    * a usable address. Kept separate from `rows` so "type an address, click

@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useSessionStore } from "@/state/sessionStore";
 import { useOnboardingStore } from "@/state/onboardingStore";
+import { nameFromEmail } from "@/lib/nameFromEmail";
+import * as orgsApi from "@/lib/api/resources/organizations";
+import * as learnerProfileApi from "@/lib/api/resources/learnerProfile";
+import * as usersApi from "@/lib/api/resources/users";
 
 const PERSONAS = [
   "Onboard new hires",
@@ -31,8 +35,28 @@ export function OnboardingWizard({ initialStep = 1 }: { initialStep?: number }) 
   const [industry, setIndustry] = useState("");
   const [size, setSize] = useState("");
   const [persona, setPersona] = useState<string | null>(null);
+  const [goal, setGoal] = useState("");
   const [emails, setEmails] = useState<string[]>([]);
   const [emailDraft, setEmailDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Every step's save is best-effort: the wizard always advances regardless
+  // of whether it succeeded, since getting stuck here (e.g. because this
+  // particular account wasn't granted the right role) would be worse than a
+  // dropped save the person can redo later from Settings/Users. `error`
+  // surfaces what happened rather than swallowing it silently.
+  async function saveStep(fn: () => Promise<unknown>) {
+    setSaving(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save that — you can update it later.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function skip() {
     // Per Onboarding Flow A: skipping any step exits straight to the shell,
@@ -104,9 +128,18 @@ export function OnboardingWizard({ initialStep = 1 }: { initialStep?: number }) 
               </select>
             </div>
           </div>
+          {error && <p className="text-xs font-medium text-danger">{error}</p>}
           <StepFooter
             onSkip={skip}
-            onContinue={() => {
+            saving={saving}
+            onContinue={async () => {
+              await saveStep(() =>
+                orgsApi.updateOrgGeneral({
+                  name: name.trim() || undefined,
+                  industry: industry || undefined,
+                  size: size || undefined,
+                }),
+              );
               setOrgBasicsDone(true);
               setStep(2);
             }}
@@ -141,9 +174,25 @@ export function OnboardingWizard({ initialStep = 1 }: { initialStep?: number }) 
               </button>
             ))}
           </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ob-goal">What are you hoping to achieve? (optional)</Label>
+            <textarea
+              id="ob-goal"
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              rows={2}
+              placeholder="e.g. get our new hires certified before they start client work"
+              className="rounded-md border border-border bg-surface p-2 text-sm text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            />
+          </div>
+          {error && <p className="text-xs font-medium text-danger">{error}</p>}
           <StepFooter
             onSkip={skip}
-            onContinue={() => {
+            saving={saving}
+            onContinue={async () => {
+              await saveStep(() =>
+                learnerProfileApi.saveOnboardingProfile({ persona: persona ?? undefined, goal: goal.trim() || undefined }),
+              );
               setPersonaDone(true);
               setStep(3);
             }}
@@ -191,10 +240,26 @@ export function OnboardingWizard({ initialStep = 1 }: { initialStep?: number }) 
               className="rounded px-2.5 py-1.5 text-sm outline-none placeholder:text-text-tertiary"
             />
           </div>
+          {error && <p className="text-xs font-medium text-danger">{error}</p>}
           <StepFooter
             onSkip={skip}
+            saving={saving}
             continueLabel="Send invites →"
-            onContinue={() => {
+            onContinue={async () => {
+              await saveStep(async () => {
+                if (emails.length > 0) {
+                  const results = await usersApi.inviteUsers(
+                    emails.map((email) => ({ name: nameFromEmail(email), email, roleId: null })),
+                  );
+                  const failed = results.filter((r) => r.status === "failed");
+                  if (failed.length > 0) {
+                    throw new Error(
+                      `${failed.length} of ${emails.length} invite${emails.length === 1 ? "" : "s"} couldn't be sent — you can retry from Users & Roles.`,
+                    );
+                  }
+                }
+                await learnerProfileApi.saveOnboardingProfile({ inviteCount: emails.length });
+              });
               setInviteCount(emails.length);
               setStep(4);
             }}
@@ -224,10 +289,12 @@ function StepFooter({
   onSkip,
   onContinue,
   continueLabel = "Continue →",
+  saving = false,
 }: {
   onSkip: () => void;
   onContinue: () => void;
   continueLabel?: string;
+  saving?: boolean;
 }) {
   return (
     <div className="mt-1 flex items-center justify-between">
@@ -238,7 +305,7 @@ function StepFooter({
       >
         Skip for now
       </button>
-      <Button onClick={onContinue}>{continueLabel}</Button>
+      <Button onClick={onContinue} loading={saving}>{continueLabel}</Button>
     </div>
   );
 }

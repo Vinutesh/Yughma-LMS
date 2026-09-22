@@ -105,6 +105,7 @@ model Organization {
   contentReports      ContentReport[]
   xapiStatements      XapiStatement[]
   lrsConnection       LrsConnection?
+  learnerProfiles     LearnerProfile[]
 }
 
 enum UserStatus {
@@ -156,6 +157,8 @@ model User {
   scormLaunchTokens  ScormLaunchToken[]
   videoProgress      VideoProgress[]
   scormProgress      ScormProgress[]
+  learnerProfile     LearnerProfile?
+  notes              Note[]
 
   @@unique([orgId, email])
   @@index([orgId])
@@ -460,6 +463,7 @@ model Lesson {
   scormLaunchTokens ScormLaunchToken[]
   videoProgress    VideoProgress[]
   scormProgress    ScormProgress[]
+  notes            Note[]
 
   @@index([courseId])
   @@index([moduleId])
@@ -485,6 +489,44 @@ model VideoProgress {
 
   @@unique([userId, lessonId])
   @@index([lessonId])
+}
+
+/// A learner's own private scratchpad for one lesson — one row per (user,
+/// lesson), not a list of discrete timestamped entries. Nothing else reads
+/// this; it exists purely for the learner's own reference.
+model Note {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId  String
+  body      String
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([lessonId])
+}
+
+/// Captured once, at onboarding — what a new org's first admin said they're
+/// hoping to achieve, plus the coarse 4-option persona pick already shown in
+/// the wizard. `leadScore` is a simple, explainable rule-based v1 (see
+/// `learnerProfile.ts`'s `computeLeadScore`), recomputed on every save; not a
+/// trained model, deliberately, until there's enough real data to train one
+/// on. One row per user — an org's overall "lead" signal is just its admin's
+/// row, since only the org's first/admin user goes through onboarding today.
+model LearnerProfile {
+  id        String   @id @default(cuid())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId     String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  persona   String?
+  goal      String?
+  leadScore Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
 }
 
 enum EnrollmentStatus {
