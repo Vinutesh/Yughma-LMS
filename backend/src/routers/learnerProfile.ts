@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc/trpc.js";
+import { router, protectedProcedure, requirePermission } from "../trpc/trpc.js";
 
 /**
  * A simple, explainable rule-based v1 — not a trained model, deliberately,
@@ -47,4 +47,21 @@ export const learnerProfileRouter = router({
     }),
 
   mine: protectedProcedure.query(({ ctx }) => ctx.db.learnerProfile.findUnique({ where: { userId: ctx.session.userId } })),
+
+  /** Same permission tier as Reports/Analytics — this is the CRM/lead-gen
+   * capability's one visible surface today, per the client's own ask that
+   * this be demonstrable inside the product, not just a database row. */
+  list: requirePermission("reports", "view").query(async ({ ctx }) => {
+    const profiles = await ctx.db.learnerProfile.findMany({ orderBy: { leadScore: "desc" } });
+    const users = await ctx.db.user.findMany({
+      where: { id: { in: profiles.map((p) => p.userId) } },
+      select: { id: true, name: true, email: true },
+    });
+    const userById = new Map(users.map((u) => [u.id, u]));
+    return profiles.map((p) => ({
+      ...p,
+      userName: userById.get(p.userId)?.name ?? "Unknown",
+      userEmail: userById.get(p.userId)?.email ?? "",
+    }));
+  }),
 });

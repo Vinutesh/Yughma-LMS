@@ -82,6 +82,7 @@ export const MANAGE_NAV: NavSection[] = [
       { label: "Team Overview", href: "/manage/team", requires: { resource: RESOURCES.team, action: "view" } },
       { label: "Reports", href: "/manage/reports", requires: { resource: RESOURCES.reports, action: "view" } },
       { label: "Analytics", href: "/manage/analytics", requires: { resource: RESOURCES.reports, action: "view" } },
+      { label: "Leads", href: "/manage/leads", requires: { resource: RESOURCES.reports, action: "view" } },
       { label: "Moderation Queue", href: "/manage/moderation", requires: { resource: RESOURCES.courses, action: "edit" } },
     ],
   },

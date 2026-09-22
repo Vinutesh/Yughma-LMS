@@ -15,3 +15,25 @@ export async function saveOnboardingProfile(input: {
     throw toApiError(err);
   }
 }
+
+export interface Lead {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  persona: string | null;
+  goal: string | null;
+  leadScore: number;
+  updatedAt: string;
+}
+
+/** The one visible surface for the CRM/lead-gen capability — see the
+ * router's own doc comment. */
+export async function listLeads(): Promise<Lead[]> {
+  try {
+    const rows = await trpcClient.learnerProfile.list.query();
+    return rows.map((r) => ({ ...r, updatedAt: new Date(r.updatedAt).toISOString() }));
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
