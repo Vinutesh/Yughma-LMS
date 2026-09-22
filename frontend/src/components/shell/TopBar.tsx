@@ -42,9 +42,9 @@ export function TopBar({ onOpenNav }: { onOpenNav: () => void }) {
           // <img> (not next/image, which needs a fixed box that would crop
           // or distort a logo that isn't square like the fallback mark is).
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="" className="h-5 w-auto shrink-0 rounded-[5px]" />
+          <img src={logoUrl} alt="" className="h-7 w-auto shrink-0 rounded-[5px]" />
         ) : (
-          <Image src="/mark-64.png" alt="" width={20} height={20} className="shrink-0 rounded-[5px] shadow-(--shadow-token-sm)" />
+          <Image src="/mark-64.png" alt="" width={28} height={28} className="shrink-0" />
         )}
         <span className="truncate">{org?.name}</span>
       </div>
