@@ -44,3 +44,23 @@ export const rawPrisma = globalForPrisma.prisma ?? new PrismaClient({ adapter })
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = rawPrisma;
 }
+
+/**
+ * A foreign-key-violation check callers actually rely on (see
+ * `users.ts`'s `delete` and `platform.ts`'s `eraseClientUser`) — worth
+ * getting right in one place rather than duplicating a guess per call site.
+ * With the Neon driver adapter (see this file's own doc comment above),
+ * Prisma does NOT throw its usual `PrismaClientKnownRequestError` with a
+ * `P2003` code for this — it throws a `DriverAdapterError` whose top-level
+ * `.code` is undefined and whose real Postgres SQLSTATE lives at
+ * `.cause.code` instead (confirmed against a real FK violation: `23503` for
+ * a plain foreign-key violation, `23001` for a RESTRICT-specific one). A
+ * message-substring check is what shipped here originally and silently
+ * never matched (a casing mismatch against Postgres's own lowercase
+ * wording) — checking the actual SQLSTATE is the fix, not a better guess at
+ * a string to search for.
+ */
+export function isForeignKeyViolation(err: unknown): boolean {
+  const code = (err as { cause?: { code?: string } })?.cause?.code;
+  return code === "23503" || code === "23001";
+}

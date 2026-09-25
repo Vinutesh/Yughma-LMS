@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, requirePermission } from "../trpc/trpc.js";
 import { hashPassword } from "../auth/password.js";
 import { sendPasswordResetEmail, sendWelcomeEmail } from "../email/resend.js";
+import { isForeignKeyViolation } from "../db.js";
 
 /**
  * Mirrors `frontend/src/lib/api/resources/users.ts` procedure-for-procedure.
@@ -209,7 +210,7 @@ export const usersRouter = router({
         // into: authored content outlives its author by design, so this
         // reports rather than quietly deleting a course out from under
         // everyone using it.
-        if (err instanceof Error && err.message.includes("Foreign key constraint")) {
+        if (isForeignKeyViolation(err)) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:

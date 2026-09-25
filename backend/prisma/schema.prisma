@@ -854,8 +854,14 @@ model AuditLogEntry {
   org           Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   orgId         String
   at            DateTime        @default(now())
-  actor         User            @relation("AuditActor", fields: [actorUserId], references: [id])
-  actorUserId   String
+  /// SetNull, not the schema-wide default — this is just a "who did this"
+  /// pointer for a compliance record, not real content ownership like a
+  /// Course/Asset/Thread. Deleting the actor should never be blocked by it;
+  /// the log entry (what happened, when, target) stays, only the live link
+  /// to the now-gone user goes away. `auditLog.ts`'s `list` resolver already
+  /// handles a null actor as "Deleted user".
+  actor         User?           @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUserId   String?
   action        AuditActionType
   summary       String
   targetLabel   String?

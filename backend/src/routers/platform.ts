@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, requirePlatformAdmin } from "../trpc/trpc.js";
 import { hashPassword } from "../auth/password.js";
 import { sendAccessGrantedEmail, sendWelcomeEmail } from "../email/resend.js";
+import { isForeignKeyViolation } from "../db.js";
 
 /**
  * Platform-admin-only operations — gated by `requirePlatformAdmin`, a
@@ -443,7 +444,7 @@ export const platformRouter = router({
     try {
       await ctx.rawDb.user.delete({ where: { id: input.userId } });
     } catch (err) {
-      if (err instanceof Error && err.message.includes("Foreign key constraint")) {
+      if (isForeignKeyViolation(err)) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message:

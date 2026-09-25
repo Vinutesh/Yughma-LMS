@@ -34,10 +34,16 @@ export const auditLogRouter = router({
         orderBy: { at: "desc" },
       });
 
-      const actorIds = [...new Set(entries.map((e) => e.actorUserId))];
+      const actorIds = [...new Set(entries.map((e) => e.actorUserId).filter((id): id is string => id !== null))];
       const actors = await ctx.db.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } });
       const nameById = new Map(actors.map((a) => [a.id, a.name]));
 
-      return entries.map((e) => ({ ...e, actorName: nameById.get(e.actorUserId) ?? "Unknown" }));
+      // `actorUserId` is null once that account's been deleted (SetNull —
+      // see the schema's own comment) — the entry itself still stands, it
+      // just no longer names a live account.
+      return entries.map((e) => ({
+        ...e,
+        actorName: e.actorUserId ? (nameById.get(e.actorUserId) ?? "Unknown") : "Deleted user",
+      }));
     }),
 });
