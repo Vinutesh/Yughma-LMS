@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router } from "../trpc/trpc.js";
@@ -5,6 +6,13 @@ import { login as loginUser, AuthError } from "../auth/login.js";
 import { deleteSession } from "../auth/session.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { rawPrisma } from "../db.js";
+import { appUrl, sendForgotPasswordEmail } from "../email/resend.js";
+
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+
+function hashToken(rawToken: string): string {
+  return crypto.createHash("sha256").update(rawToken).digest("hex");
+}
 
 /**
  * Returns the same `{ user, org, roles, permissions }` shape the frontend's
@@ -72,6 +80,55 @@ export const authRouter = router({
   // public "create your own org" endpoint would have been a bypass of that.
 
   me: protectedProcedure.query(({ ctx }) => buildSessionPayload(ctx.session.userId)),
+
+  /** Always returns `{ ok: true }` regardless of whether the email actually
+   * matches an account — a different response would let anyone probe which
+   * addresses have accounts (the same enumeration concern `login` already
+   * guards against, see `auth/login.ts`). If it does match, mints a
+   * single-use, 30-minute token, stores only its hash (never the raw value —
+   * see `PasswordResetToken`'s own schema comment), and emails a link
+   * carrying the raw token. */
+  requestPasswordReset: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const user = await rawPrisma.user.findFirst({ where: { email: input.email.trim().toLowerCase() } });
+      if (user) {
+        const rawToken = crypto.randomBytes(32).toString("base64url");
+        await rawPrisma.passwordResetToken.create({
+          data: { userId: user.id, tokenHash: hashToken(rawToken), expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+        });
+        const resetUrl = `${appUrl()}/forgot-password?token=${rawToken}`;
+        await sendForgotPasswordEmail(user.email, user.name, resetUrl);
+      }
+      return { ok: true };
+    }),
+
+  /** Consumes a token minted by `requestPasswordReset` — rejects a
+   * missing/expired/already-used one with the same message either way (no
+   * reason to distinguish "expired" from "already used" from "never
+   * existed" for the caller). Revokes every existing session and clears
+   * login lockouts, same cleanup the admin-triggered reset in `users.ts`
+   * does, since a password reset is exactly the moment old sessions
+   * shouldn't survive. */
+  resetPasswordWithToken: publicProcedure
+    .input(z.object({ token: z.string().min(1), newPassword: z.string().min(8) }))
+    .mutation(async ({ input }) => {
+      const record = await rawPrisma.passwordResetToken.findUnique({ where: { tokenHash: hashToken(input.token) } });
+      if (!record || record.usedAt || record.expiresAt < new Date()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This reset link is invalid or has expired. Request a new one." });
+      }
+
+      const passwordHash = await hashPassword(input.newPassword);
+      await rawPrisma.user.update({
+        where: { id: record.userId },
+        data: { passwordHash, mustChangePassword: false },
+      });
+      await rawPrisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+      await rawPrisma.authSession.deleteMany({ where: { userId: record.userId } });
+      const user = await rawPrisma.user.findUnique({ where: { id: record.userId }, select: { email: true } });
+      if (user) await rawPrisma.loginAttempt.deleteMany({ where: { email: user.email } });
+      return { ok: true };
+    }),
 
   /** Also clears `mustChangePassword` — this is the only path that does,
    * whether the caller landed here because of the forced first-login

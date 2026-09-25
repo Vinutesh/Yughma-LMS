@@ -30,7 +30,7 @@ function getClient(): Resend {
   return client;
 }
 
-function appUrl(): string {
+export function appUrl(): string {
   return getEnv("APP_URL") ?? getEnv("CORS_ORIGIN") ?? "http://localhost:3000";
 }
 
@@ -91,6 +91,23 @@ export async function sendPasswordResetEmail(to: string, name: string, tempPassw
      <p>An administrator reset your Yughma LMS password.</p>
      <p><strong>Temporary password:</strong> ${escapeHtml(tempPassword)}</p>
      <p>You'll be asked to choose a new one right after you <a href="${appUrl()}/login">log in</a>.</p>`,
+  );
+}
+
+/** The self-service "forgot password" email — distinct from
+ * `sendPasswordResetEmail` above, which is the admin-triggered temp-password
+ * flow and has no link/token at all. `resetUrl` already has the raw token
+ * embedded (see `auth.requestPasswordReset`) — nothing here needs to know
+ * about tokens itself. */
+export async function sendForgotPasswordEmail(to: string, name: string, resetUrl: string): Promise<boolean> {
+  return send(
+    to,
+    "Reset your Yughma LMS password",
+    `<p>Hi ${escapeHtml(name)},</p>
+     <p>Someone requested a password reset for this account. Click below to choose a new password —
+     this link expires in 30 minutes.</p>
+     <p><a href="${resetUrl}">Reset your password</a></p>
+     <p>If you didn't request this, you can safely ignore this email — your password won't change.</p>`,
   );
 }
 

@@ -159,6 +159,7 @@ model User {
   scormProgress      ScormProgress[]
   learnerProfile     LearnerProfile?
   notes              Note[]
+  passwordResetTokens PasswordResetToken[]
 
   @@unique([orgId, email])
   @@index([orgId])
@@ -206,6 +207,25 @@ model AuthSession {
   userId    String
   createdAt DateTime @default(now())
   expiresAt DateTime
+
+  @@index([userId])
+}
+
+/// Self-service "forgot password" — distinct from `AuthSession` (a login
+/// token) and from the admin-triggered temp-password reset in `users.ts`
+/// (no token at all, just a relayed password). Only `tokenHash` is ever
+/// stored, same reasoning as `ApiKeyRecord.keyHash` — the raw token exists
+/// only in the emailed link and the requester's memory, never at rest.
+/// Single-use (`usedAt`) and short-lived (`expiresAt`), enforced in
+/// `auth.resetPasswordWithToken`.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }

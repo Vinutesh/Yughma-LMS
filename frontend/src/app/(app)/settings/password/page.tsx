@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/Label";
 import { useSessionStore } from "@/state/sessionStore";
 import * as authApi from "@/lib/api/resources/auth";
@@ -59,9 +59,8 @@ export default function ChangePasswordPage() {
       <Card className="flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="current-password">Current password</Label>
-          <Input
+          <PasswordInput
             id="current-password"
-            type="password"
             autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
@@ -69,9 +68,8 @@ export default function ChangePasswordPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="new-password">New password</Label>
-          <Input
+          <PasswordInput
             id="new-password"
-            type="password"
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
@@ -80,9 +78,8 @@ export default function ChangePasswordPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="confirm-password">Confirm new password</Label>
-          <Input
+          <PasswordInput
             id="confirm-password"
-            type="password"
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

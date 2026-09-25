@@ -81,6 +81,22 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  try {
+    await trpcClient.auth.requestPasswordReset.mutate({ email });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
+export async function resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
+  try {
+    await trpcClient.auth.resetPasswordWithToken.mutate({ token, newPassword });
+  } catch (err) {
+    throw toApiError(err);
+  }
+}
+
 export async function me(): Promise<Session> {
   try {
     const result = await trpcClient.auth.me.query();
