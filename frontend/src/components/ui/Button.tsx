@@ -8,7 +8,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-text-primary text-canvas hover:opacity-90",
+        // The default variant — Log in, Save, every primary action across
+        // the app (44+ call sites, unlike `accent` below which barely gets
+        // used) — so this is the one gradient surface in the whole
+        // component set; see globals.css's --brand-gradient comment on why
+        // it's spent here and nowhere else. `brightness` on hover, not
+        // `opacity`: opacity would wash the gradient out toward the page
+        // background instead of just brightening it.
+        primary: "bg-brand-gradient text-accent-fg shadow-(--shadow-token-glow) hover:brightness-110",
         accent: "bg-accent text-accent-fg hover:opacity-90",
         secondary:
           "bg-surface-alt text-text-primary border border-border hover:bg-border/40",

@@ -12,7 +12,7 @@ export function Card({ className, interactive, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-surface shadow-(--shadow-token-sm)",
+        "rounded-xl border border-border bg-surface shadow-(--shadow-token-card)",
         interactive &&
           "transition-[transform,box-shadow,border-color] duration-150 ease-out hover:-translate-y-0.5 hover:scale-[1.01] hover:border-border-strong hover:shadow-(--shadow-token-md) active:translate-y-0 active:scale-100 active:duration-80",
         className,
