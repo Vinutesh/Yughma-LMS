@@ -296,13 +296,17 @@ function EmployeeRow({
   });
 
   return (
-    <div className="flex items-center justify-between rounded-md border border-border px-2.5 py-2">
-      <div>
-        <p className="text-sm font-medium text-text-primary">{user.name}</p>
-        <p className="text-xs text-text-tertiary">{user.email}</p>
+    <div className="flex flex-col gap-2 rounded-md border border-border px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-text-primary">{user.name}</p>
+          <p className="truncate text-xs text-text-tertiary">{user.email}</p>
+        </div>
+        <Badge variant={active ? "neutral" : "danger"} className="shrink-0">
+          {user.status}
+        </Badge>
       </div>
-      <div className="flex items-center gap-2">
-        <Badge variant={active ? "neutral" : "danger"}>{user.status}</Badge>
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button size="sm" variant="ghost" loading={exportData.isPending} onClick={() => exportData.mutate()}>
           Export data
         </Button>
