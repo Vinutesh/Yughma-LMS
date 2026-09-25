@@ -52,9 +52,18 @@ export interface OverdueRow {
   daysOverdue: number;
 }
 
+export interface TeamMemberRow {
+  id: string;
+  name: string;
+  email: string;
+  enrollmentCount: number;
+  completionPercent: number;
+}
+
 export interface ManagerDashboard {
   teamSize: number;
   completionPercent: number;
+  members: TeamMemberRow[];
   overdue: OverdueRow[];
 }
 

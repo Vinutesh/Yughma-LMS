@@ -115,6 +115,22 @@ export const dashboardRouter = router({
     const completed = teamEnrollments.filter((e) => e.status === "completed").length;
     const completionPercent = teamEnrollments.length === 0 ? 0 : Math.round((completed / teamEnrollments.length) * 100);
 
+    // Per-member breakdown for the full Team Overview page — the aggregate
+    // bar above is what the Dashboard's compact widget shows, but "Team
+    // Overview" is the one place a manager should be able to see each
+    // person's own number, not just the department-wide average.
+    const members = team.map((m) => {
+      const own = teamEnrollments.filter((e) => e.userId === m.id);
+      const ownCompleted = own.filter((e) => e.status === "completed").length;
+      return {
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        enrollmentCount: own.length,
+        completionPercent: own.length === 0 ? 0 : Math.round((ownCompleted / own.length) * 100),
+      };
+    });
+
     const now = Date.now();
     const overdueAssignments = await ctx.rawDb.assignment.findMany({ where: { dueAt: { not: null } } });
     const courses = await ctx.rawDb.course.findMany();
@@ -142,7 +158,12 @@ export const dashboardRouter = router({
       }
     }
 
-    return { teamSize: team.length, completionPercent, overdue: overdue.sort((a, b) => b.daysOverdue - a.daysOverdue) };
+    return {
+      teamSize: team.length,
+      completionPercent,
+      members: members.sort((a, b) => a.name.localeCompare(b.name)),
+      overdue: overdue.sort((a, b) => b.daysOverdue - a.daysOverdue),
+    };
   }),
 
   /**
